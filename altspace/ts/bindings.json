@@ -1046,7 +1046,7 @@
       "object": "loungeLeaveButton"
     }
   ],
-  "hash": "dfa38295e9ffc5a8d53a3da5becbd1d091094fdc",
+  "hash": "126bf586a7b4a238d23036cd9eb8fba756f107ba",
   "objects": {
     "abortButton": {
       "click": true,
@@ -1058,7 +1058,7 @@
     "abstainButton": {
       "click": true,
       "grab": false,
-      "path": "Station/Regions/R15/Muster/Board/Abstain",
+      "path": "Station/Regions/R15/Muster/Board/Pass",
       "seat": false,
       "sync": "none"
     },

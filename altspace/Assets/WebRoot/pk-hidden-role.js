@@ -3,7 +3,7 @@
  * Rules translated from MIT-licensed C# by chocowriter and dmjdesu; runtime portkit (MIT).
  * Licence texts and credits: see the source repository's README.
  */
-/* pk-hidden-role.js: portkit runtime with the rules of 'hidden-role' (protocol pk1, bindings 09efd472f362ab3ac046cad67aa2cdf7e7fda236). Built file: do not edit. */
+/* pk-hidden-role.js: portkit runtime with the rules of 'hidden-role' (protocol pk1, bindings 93cfe78f7a38f0248fba38b674565cb428a15cc9). Built file: do not edit. */
 (() => {
   var __defProp = Object.defineProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -8049,6 +8049,45 @@ ${label}`)));
   /** The only methods another client may ask for (portkit: network calls are refused unless listed). */
   __publicField(Match, "networkCallable", ["CmdStart", "CmdAbort"]);
 
+  // src/region-pvs.json
+  var region_pvs_default = {
+    note: "tools/sightlines.ts: per region, the regions visible from it (1), row by row from the south-west of the play bounds",
+    cols: 6,
+    rows: 5,
+    visible: [
+      "000000000000000000000000000000",
+      "111110111000111100000100000000",
+      "011110111110111100001100000000",
+      "011110111111101100001100000000",
+      "011111111111000011000011000000",
+      "000000000000000000000000000000",
+      "111110111000111110110011010000",
+      "111110111000111110110111010000",
+      "011110111100111110001100000000",
+      "001110001110011110001100000000",
+      "001111000111000111000011000000",
+      "000111000011000011000011000010",
+      "011100111000111111110000010000",
+      "011000111100111111111111010000",
+      "011100111100111111111111000000",
+      "011100111110111111111111000000",
+      "000010111111111111001111000010",
+      "000010000011111111000011000010",
+      "000000110000111100110000110000",
+      "000000110000111100111110111100",
+      "001100001100011110011110011100",
+      "011100011100011110011110011110",
+      "000010110011011111011111011111",
+      "000010000011001111000011000111",
+      "000000000000000000000000000000",
+      "000000110000110000111110111100",
+      "000000000000000000011110011110",
+      "000000000000000001011111011110",
+      "000000000001000011000111001111",
+      "000000000000000000000000000000"
+    ]
+  };
+
   // src/RuntimeHud.ts
   var LOUNGE_OFFSET = new Vector3(0, -70, 0);
   var WAVE_ALERT_SECONDS = 6;
@@ -8099,6 +8138,9 @@ ${label}`)));
       /** Turned to face this player while a muster runs. */
       __publicField(this, "musterBoard", null);
       __publicField(this, "creditsPanel", null);
+      /** The station's drawn parts, a region of the map each (columns x rows over the play bounds, row by row from the south-west). */
+      __publicField(this, "regions", []);
+      __publicField(this, "regionGrid", [region_pvs_default.cols, region_pvs_default.rows]);
       // ---- local state --------------------------------------------------------------------------------------------
       __publicField(this, "settings");
       __publicField(this, "match");
@@ -8119,6 +8161,7 @@ ${label}`)));
       __publicField(this, "taps", 0);
       __publicField(this, "lastWork", -1);
       __publicField(this, "creditsOpen", false);
+      __publicField(this, "lastRegionCheck", -1);
       /** What the local effects were last applied for. */
       __publicField(this, "applied", { round: -1, state: MatchState.Lobby, alive: true, inMatch: false, placedRound: -1, slot: -1 });
       __publicField(this, "returnPoint", null);
@@ -8456,6 +8499,7 @@ ${label}`)));
       if (this.autoReleaseAt > 0 && this.Time.time >= this.autoReleaseAt) this.Press(Btn.Use, false);
       this.Effects(m, slot);
       this.WorkBar(m, slot);
+      this.Regions();
       if (this.Time.frameCount % BEAT_TICKS === 0) {
         void this.SendBeat(m, slot);
         this.Refresh();
@@ -8488,9 +8532,9 @@ ${label}`)));
       const alive = inMatch && m.al[slot] === 1;
       if (inMatch && m.st === MatchState.Playing && a.placedRound !== m.r) {
         a.placedRound = m.r;
-        const placed = this.Storage.get("placed", -1);
-        if (placed !== m.r * 1e3 + slot) {
-          this.Storage.set("placed", m.r * 1e3 + slot);
+        const placed = this.Storage.get("placed", "");
+        if (placed !== `${m.t0}:${slot}`) {
+          this.Storage.set("placed", `${m.t0}:${slot}`);
           if (alive) this.Teleport("start", new Vector2(m.sp[slot][0], m.sp[slot][1]), STATION.MeetingPoint);
         }
         this.seq = 0;
@@ -8764,6 +8808,36 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
         if (this.shell.activeSelf !== radius > 0) this.shell.SetActive(radius > 0);
       }
     }
+    /**
+     * Draws only the regions of the station that can be seen from the local player's region (a kit cannot carry baked
+     * occlusion data, so the visible sets are worked out ahead by tools/sightlines.ts: src/region-pvs.json). Every region
+     * before the page knows where the player is and from outside the station; none from the lounge.
+     */
+    Regions() {
+      if (!this.regions.length || this.Time.time - this.lastRegionCheck < 0.5) return;
+      this.lastRegionCheck = this.Time.time;
+      const w = this.Input.Position;
+      const [cols, rows] = [this.regionGrid[0] ?? 4, this.regionGrid[1] ?? 3];
+      const b = STATION.PlayBounds;
+      const p = w ? this.ToMap(w) : null;
+      const below = !!w && w.y < this.origin.y - 20;
+      const grid = cols === region_pvs_default.cols && rows === region_pvs_default.rows;
+      let from = -1;
+      if (p && grid && this.InsideStation(w)) {
+        const cx = Math.min(cols - 1, Math.max(0, Math.floor((p.x - b.xMin) / b.width * cols)));
+        const cy = Math.min(rows - 1, Math.max(0, Math.floor((p.y - b.yMin) / b.height * rows)));
+        from = cy * cols + cx;
+      }
+      for (let i = 0; i < this.regions.length; i++) {
+        const on = below ? false : from < 0 ? true : region_pvs_default.visible[from][i] === "1";
+        const region = this.regions[i];
+        if (region.activeSelf !== on) region.SetActive(on);
+      }
+    }
+    /** How many regions are drawn now (tests). */
+    get RegionsOn() {
+      return this.regions.filter((r) => r.activeSelf).length;
+    }
     /** A bar's fill, scaled along x from its left end (0 hides it). */
     SetFill(fill, amount) {
       const x = Math.round(Math.max(0, Math.min(1, amount)) * 100) / 100;
@@ -8879,10 +8953,16 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       mine: () => hud().Mine(),
       joined: () => hud().Joined,
       work: () => hud().WorkAmount,
+      regionsOn: () => hud().RegionsOn,
+      events: (kind) => match().history.filter((e) => e.kind === kind).map((e) => ({ t: e.t, actor: e.actor, target: e.target, detail: e.detail })),
       moves: () => hud().moves.map((mv) => ({ why: mv.why, x: mv.at.x, y: mv.at.y })),
       here: () => {
         const p = hud().MyMapPosition();
         return p ? [p.x, p.y] : null;
+      },
+      toMap: (x, y, z) => {
+        const p = hud().ToMap(new Vector3(x, y, z));
+        return [p.x, p.y];
       },
       world: (x, y, h = 0) => {
         const w = hud().ToWorld(new Vector2(x, y), h);
@@ -9083,6 +9163,99 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
           personalPanel: {
             $obj: "personalPanel"
           },
+          regionGrid: [6, 5],
+          regions: [
+            {
+              $obj: "region00"
+            },
+            {
+              $obj: "region01"
+            },
+            {
+              $obj: "region02"
+            },
+            {
+              $obj: "region03"
+            },
+            {
+              $obj: "region04"
+            },
+            {
+              $obj: "region05"
+            },
+            {
+              $obj: "region06"
+            },
+            {
+              $obj: "region07"
+            },
+            {
+              $obj: "region08"
+            },
+            {
+              $obj: "region09"
+            },
+            {
+              $obj: "region10"
+            },
+            {
+              $obj: "region11"
+            },
+            {
+              $obj: "region12"
+            },
+            {
+              $obj: "region13"
+            },
+            {
+              $obj: "region14"
+            },
+            {
+              $obj: "region15"
+            },
+            {
+              $obj: "region16"
+            },
+            {
+              $obj: "region17"
+            },
+            {
+              $obj: "region18"
+            },
+            {
+              $obj: "region19"
+            },
+            {
+              $obj: "region20"
+            },
+            {
+              $obj: "region21"
+            },
+            {
+              $obj: "region22"
+            },
+            {
+              $obj: "region23"
+            },
+            {
+              $obj: "region24"
+            },
+            {
+              $obj: "region25"
+            },
+            {
+              $obj: "region26"
+            },
+            {
+              $obj: "region27"
+            },
+            {
+              $obj: "region28"
+            },
+            {
+              $obj: "region29"
+            }
+          ],
           shell: {
             $obj: "shell"
           },
@@ -9858,9 +10031,21 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
         kind: "click",
         method: "ClickAbstain",
         object: "abstainButton"
+      },
+      {
+        behaviour: "hud",
+        kind: "click",
+        method: "ClickAbort",
+        object: "loungeAbortButton"
+      },
+      {
+        behaviour: "hud",
+        kind: "click",
+        method: "ClickLeave",
+        object: "loungeLeaveButton"
       }
     ],
-    hash: "09efd472f362ab3ac046cad67aa2cdf7e7fda236",
+    hash: "93cfe78f7a38f0248fba38b674565cb428a15cc9",
     objects: {
       abortButton: {
         click: true,
@@ -10039,154 +10224,154 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       console0: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console00",
+        path: "Station/Regions/R14/Console00",
         seat: false,
         sync: "none"
       },
       console1: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console01",
+        path: "Station/Regions/R12/Console01",
         seat: false,
         sync: "none"
       },
       console10: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console10",
+        path: "Station/Regions/R10/Console10",
         seat: false,
         sync: "none"
       },
       console11: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console11",
+        path: "Station/Regions/R17/Console11",
         seat: false,
         sync: "none"
       },
       console12: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console12",
+        path: "Station/Regions/R11/Console12",
         seat: false,
         sync: "none"
       },
       console13: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console13",
+        path: "Station/Regions/R04/Console13",
         seat: false,
         sync: "none"
       },
       console14: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console14",
+        path: "Station/Regions/R04/Console14",
         seat: false,
         sync: "none"
       },
       console15: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console15",
+        path: "Station/Regions/R03/Console15",
         seat: false,
         sync: "none"
       },
       console16: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console16",
+        path: "Station/Regions/R03/Console16",
         seat: false,
         sync: "none"
       },
       console17: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console17",
+        path: "Station/Regions/R03/Console17",
         seat: false,
         sync: "none"
       },
       console18: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console18",
+        path: "Station/Regions/R07/Console18",
         seat: false,
         sync: "none"
       },
       console19: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console19",
+        path: "Station/Regions/R08/Console19",
         seat: false,
         sync: "none"
       },
       console2: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console02",
+        path: "Station/Regions/R19/Console02",
         seat: false,
         sync: "none"
       },
       console20: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console20",
+        path: "Station/Regions/R06/Console20",
         seat: false,
         sync: "none"
       },
       console21: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console21",
+        path: "Station/Regions/R07/Console21",
         seat: false,
         sync: "none"
       },
       console3: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console03",
+        path: "Station/Regions/R19/Console03",
         seat: false,
         sync: "none"
       },
       console4: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console04",
+        path: "Station/Regions/R25/Console04",
         seat: false,
         sync: "none"
       },
       console5: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console05",
+        path: "Station/Regions/R27/Console05",
         seat: false,
         sync: "none"
       },
       console6: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console06",
+        path: "Station/Regions/R28/Console06",
         seat: false,
         sync: "none"
       },
       console7: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console07",
+        path: "Station/Regions/R22/Console07",
         seat: false,
         sync: "none"
       },
       console8: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console08",
+        path: "Station/Regions/R16/Console08",
         seat: false,
         sync: "none"
       },
       console9: {
         click: true,
         grab: false,
-        path: "Station/Consoles/Console09",
+        path: "Station/Regions/R23/Console09",
         seat: false,
         sync: "none"
       },
@@ -10215,28 +10400,28 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       faultPanel0: {
         click: true,
         grab: false,
-        path: "Station/Panels/Panel0",
+        path: "Station/Regions/R04/Panel0",
         seat: false,
         sync: "none"
       },
       faultPanel1: {
         click: true,
         grab: false,
-        path: "Station/Panels/Panel1",
+        path: "Station/Regions/R03/Panel1",
         seat: false,
         sync: "none"
       },
       faultPanel2: {
         click: true,
         grab: false,
-        path: "Station/Panels/Panel2",
+        path: "Station/Regions/R22/Panel2",
         seat: false,
         sync: "none"
       },
       faultPanel3: {
         click: true,
         grab: false,
-        path: "Station/Panels/Panel3",
+        path: "Station/Regions/R07/Panel3",
         seat: false,
         sync: "none"
       },
@@ -10279,6 +10464,20 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
         click: true,
         grab: false,
         path: "Hub/Board/Leave",
+        seat: false,
+        sync: "none"
+      },
+      loungeAbortButton: {
+        click: true,
+        grab: false,
+        path: "Lounge/Board/Abort",
+        seat: false,
+        sync: "none"
+      },
+      loungeLeaveButton: {
+        click: true,
+        grab: false,
+        path: "Lounge/Board/Leave",
         seat: false,
         sync: "none"
       },
@@ -10356,6 +10555,216 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
         click: false,
         grab: false,
         path: "Personal/Panel",
+        seat: false,
+        sync: "none"
+      },
+      region00: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R00",
+        seat: false,
+        sync: "none"
+      },
+      region01: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R01",
+        seat: false,
+        sync: "none"
+      },
+      region02: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R02",
+        seat: false,
+        sync: "none"
+      },
+      region03: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R03",
+        seat: false,
+        sync: "none"
+      },
+      region04: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R04",
+        seat: false,
+        sync: "none"
+      },
+      region05: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R05",
+        seat: false,
+        sync: "none"
+      },
+      region06: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R06",
+        seat: false,
+        sync: "none"
+      },
+      region07: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R07",
+        seat: false,
+        sync: "none"
+      },
+      region08: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R08",
+        seat: false,
+        sync: "none"
+      },
+      region09: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R09",
+        seat: false,
+        sync: "none"
+      },
+      region10: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R10",
+        seat: false,
+        sync: "none"
+      },
+      region11: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R11",
+        seat: false,
+        sync: "none"
+      },
+      region12: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R12",
+        seat: false,
+        sync: "none"
+      },
+      region13: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R13",
+        seat: false,
+        sync: "none"
+      },
+      region14: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R14",
+        seat: false,
+        sync: "none"
+      },
+      region15: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R15",
+        seat: false,
+        sync: "none"
+      },
+      region16: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R16",
+        seat: false,
+        sync: "none"
+      },
+      region17: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R17",
+        seat: false,
+        sync: "none"
+      },
+      region18: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R18",
+        seat: false,
+        sync: "none"
+      },
+      region19: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R19",
+        seat: false,
+        sync: "none"
+      },
+      region20: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R20",
+        seat: false,
+        sync: "none"
+      },
+      region21: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R21",
+        seat: false,
+        sync: "none"
+      },
+      region22: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R22",
+        seat: false,
+        sync: "none"
+      },
+      region23: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R23",
+        seat: false,
+        sync: "none"
+      },
+      region24: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R24",
+        seat: false,
+        sync: "none"
+      },
+      region25: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R25",
+        seat: false,
+        sync: "none"
+      },
+      region26: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R26",
+        seat: false,
+        sync: "none"
+      },
+      region27: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R27",
+        seat: false,
+        sync: "none"
+      },
+      region28: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R28",
+        seat: false,
+        sync: "none"
+      },
+      region29: {
+        click: false,
+        grab: false,
+        path: "Station/Regions/R29",
         seat: false,
         sync: "none"
       },

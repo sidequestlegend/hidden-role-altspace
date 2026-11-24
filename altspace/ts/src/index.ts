@@ -5,7 +5,7 @@
 // roles (PORT.md Q2).
 
 import type { GameDefinition, GameInstance } from "../portkit/src/index.ts";
-import { Vector2 } from "../portkit/src/index.ts";
+import { Vector2, Vector3 } from "../portkit/src/index.ts";
 import { Dealer } from "./Dealer.ts";
 import { Match } from "./Match.ts";
 import { PlayerLink } from "./PlayerLink.ts";
@@ -40,10 +40,16 @@ function debugHooks(instance: GameInstance): Record<string, unknown> {
     mine: () => hud().Mine(),
     joined: () => hud().Joined,
     work: () => hud().WorkAmount,
+    regionsOn: () => hud().RegionsOn,
+    events: (kind: string) => match().history.filter((e) => e.kind === kind).map((e) => ({ t: e.t, actor: e.actor, target: e.target, detail: e.detail })),
     moves: () => hud().moves.map((mv) => ({ why: mv.why, x: mv.at.x, y: mv.at.y })),
     here: () => {
       const p = hud().MyMapPosition();
       return p ? [p.x, p.y] : null;
+    },
+    toMap: (x: number, y: number, z: number) => {
+      const p = hud().ToMap(new Vector3(x, y, z));
+      return [p.x, p.y];
     },
     world: (x: number, y: number, h = 0) => {
       const w = hud().ToWorld(new Vector2(x, y), h);

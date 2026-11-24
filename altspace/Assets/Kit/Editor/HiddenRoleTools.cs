@@ -249,6 +249,14 @@ namespace HiddenRole
             File.WriteAllText("Logs/hiddenrole_walkable.txt", report.ToString());
         }
 
+        /// <summary>Debugging aid: runs Library/PortKit/eval.js in the Play-mode page (its console.log lines reach Editor.log).</summary>
+        [MenuItem("HiddenRole/Eval Page Script")]
+        public static void EvalPage()
+        {
+            if (!EditorApplication.isPlaying) { Debug.LogWarning("[hidden-role] not in Play mode"); return; }
+            KitPlayTest.Evaluate(File.ReadAllText(PortKitRemote.Dir + "/eval.js"));
+        }
+
         // ------------------------------------------------------------------ what the kit draws
 
         [MenuItem("HiddenRole/Kit Stats")]
@@ -271,9 +279,9 @@ namespace HiddenRole
                 var materials = renderers.SelectMany(r => r.sharedMaterials).Where(m => m != null).Distinct().ToList();
                 var textures = materials.SelectMany(m => m.GetTexturePropertyNames().Select(m.GetTexture)).Where(t => t != null).Distinct().ToList();
                 long texBytes = textures.Sum(t => UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(t));
-                var station = prefab.transform.Find("Station/Shell");
+                var station = prefab.transform.Find("Station/Regions");
                 int shellRenderers = station != null ? station.GetComponentsInChildren<Renderer>(true).Length : 0;
-                report.AppendLine($"renderers {renderers.Length} ({shellRenderers} station shell, {text} texts), meshes {meshes.Count}, mesh triangles (text excluded) {tris}");
+                report.AppendLine($"renderers {renderers.Length} ({shellRenderers} in the station's regions, {text} texts), meshes {meshes.Count}, mesh triangles (text excluded) {tris}");
                 report.AppendLine($"materials {materials.Count}: {string.Join(", ", materials.Select(m => m.name))}");
                 report.AppendLine($"textures {textures.Count}: {string.Join(", ", textures.Select(t => $"{t.name} {t.width}x{t.height}"))}; {texBytes / 1024} KB in the editor");
                 report.AppendLine($"colliders {prefab.GetComponentsInChildren<Collider>(true).Length}");

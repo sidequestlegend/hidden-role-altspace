@@ -99,5 +99,9 @@ test("the muster post and a body marker are clicked; the boarding pad and Leave 
   await runCrowd(world, t.drivers, () => false, 500);
   assert.equal(moves[moves.length - 1]!.why, "board");
   assert.ok(Math.abs(moves[moves.length - 1]!.at.x) < 17 && Math.abs(moves[moves.length - 1]!.at.y) < 13, "boarded into the Commons");
+  // only the regions visible from the Commons are drawn (src/region-pvs.json); all of them from outside
+  await runCrowd(world, t.drivers, () => false, 1200);
+  const on = a!.hud.RegionsOn;
+  assert.ok(on > 0 && on < a!.hud.regions.length, `regions drawn from the Commons: ${on} of ${a!.hud.regions.length}`);
   assert.deepEqual(world.problems(), []);
 });

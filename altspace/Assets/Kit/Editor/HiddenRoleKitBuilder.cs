@@ -26,7 +26,9 @@ namespace HiddenRole
         public static readonly Vector3 LoungeOffset = new Vector3(0, -70, 0);
         /// <summary>The boarding pad's sign, outside the station's south wall (map units; RuntimeHud ENTRY_POINT stands in front of it).</summary>
         public static readonly Vector2 EntrySign = new Vector2(6f, -55.4f);
-        public const int RegionColumns = 4, RegionRows = 3;
+        /// <summary>The station is drawn a region at a time on this grid over the play bounds; ts/src/region-pvs.json must be for the same grid.</summary>
+        public const int RegionColumns = 6, RegionRows = 5;
+        public const string PvsPath = "ts/src/region-pvs.json";
 
         public override string Slug => "hidden-role";
         public override string Title => "Hidden Role";
@@ -83,6 +85,9 @@ namespace HiddenRole
         {
             stage = s;
             map = JObject.Parse(File.ReadAllText(MapPath));
+            var pvs = JObject.Parse(File.ReadAllText(PvsPath));
+            if ((int)pvs["cols"] != RegionColumns || (int)pvs["rows"] != RegionRows)
+                throw new Exception($"{PvsPath} is for a {pvs["cols"]} x {pvs["rows"]} grid, the kit draws {RegionColumns} x {RegionRows}: run node tools/sightlines.ts {RegionColumns} {RegionRows}");
             var pb = Floats(map["playBounds"]);
             bounds = new Rect(pb[0], pb[1], pb[2], pb[3]);
             font = KitText.DefaultFont() ?? throw new Exception("no LiberationSans SDF: run PortKit/Setup/Run SDK Setup");
@@ -92,6 +97,10 @@ namespace HiddenRole
 
             var root = stage.Root.transform;
             var station = stage.Create("Station", root);
+            // what is drawn, a region of the map at a time: the page switches off the regions far from the player
+            var regionParent = stage.Create("Regions", station.transform).transform;
+            regionRoots.Clear();
+            for (int g = 0; g < RegionColumns * RegionRows; g++) regionRoots.Add(stage.Create($"R{g:00}", regionParent).transform);
             Station(station.transform);
 
             // ---- the behaviours (ids fixed by LockPath). The HUD's field object is filled in as its objects are made:
@@ -123,6 +132,14 @@ namespace HiddenRole
             hudFields["botMarkers"] = new JArray(bots);
             hudFields["consoles"] = new JArray(consoles);
             hudFields["jobBars"] = new JArray(jobBars);
+            var regionValues = new JArray();
+            foreach (var r in regionRoots)
+            {
+                stage.Object(r.gameObject, key: "region" + r.name.Substring(1));
+                regionValues.Add(stage.ObjectValue(r.gameObject));
+            }
+            hudFields["regions"] = regionValues;
+            hudFields["regionGrid"] = new JArray(RegionColumns, RegionRows);
             KitArt.SaveMeshes();
         }
 
@@ -134,6 +151,9 @@ namespace HiddenRole
         JObject Text(GameObject go) => stage.ComponentValue(go, "TMP");
 
         // ------------------------------------------------------------------ the station's shell
+
+        readonly List<Transform> regionRoots = new List<Transform>();
+        Transform RegionRoot(double x, double y) => regionRoots[Region(x, y)];
 
         int Region(double x, double y)
         {
@@ -152,8 +172,11 @@ namespace HiddenRole
             props = map["props"].Select(p => R(Floats(p["rect"]))).ToList();
             grid = new OpenGrid(walk, cuts);
             var gallery = R(Floats(map["rooms"].First(r => (string)r["id"] == "gallery")["rect"]));
+            var xCuts = Enumerable.Range(1, RegionColumns - 1).Select(i => (double)bounds.xMin + bounds.width * i / RegionColumns).ToArray();
+            var yCuts = Enumerable.Range(1, RegionRows - 1).Select(i => (double)bounds.yMin + bounds.height * i / RegionRows).ToArray();
             var shell = Shell.Build(grid, WallHeight, 0f, Region,
-                w => !w.Vertical && w.Facing == -1 && Math.Abs(w.At - gallery.Y1) < 0.01 && w.From >= gallery.X0 - 0.01 && w.To <= gallery.X1 + 0.01 ? "window" : "wall");
+                w => !w.Vertical && w.Facing == -1 && Math.Abs(w.At - gallery.Y1) < 0.01 && w.From >= gallery.X0 - 0.01 && w.To <= gallery.X1 + 0.01 ? "window" : "wall",
+                xCuts: xCuts, yCuts: yCuts);
 
             // props: solid boxes of their exact rectangle
             var names = map["props"].Select(p => (string)p["name"]).ToList();
@@ -177,7 +200,7 @@ namespace HiddenRole
                 signPart.Box(new Vector3(at[0] - 0.02f, 2.95f, at[1] - 0.02f), new Vector3(at[0] + 0.02f, WallHeight, at[1] + 0.02f), 1f);
                 for (int side = 0; side < 2; side++)
                 {
-                    var t = Label(station, "Sign " + (string)room["id"] + (side == 0 ? "" : " back"), ((string)room["name"]).ToUpperInvariant(), 2.4f, 0.36f, 1.7f, KitArt.Sand);
+                    var t = Label(regionRoots[g], "Sign " + (string)room["id"] + (side == 0 ? "" : " back"), ((string)room["name"]).ToUpperInvariant(), 2.4f, 0.36f, 1.7f, KitArt.Sand);
                     t.transform.localPosition = new Vector3(at[0], 2.75f, at[1] + (side == 0 ? -0.04f : 0.04f));
                     t.transform.localRotation = Quaternion.Euler(0, side == 0 ? 0 : 180, 0);
                 }
@@ -191,13 +214,12 @@ namespace HiddenRole
             }
 
             // the drawn parts, one renderer per region and material
-            var draw = stage.Create("Shell", station);
             int triangles = 0, renderers = 0;
             foreach (var pair in shell.Parts.OrderBy(p => p.Key.Item1).ThenBy(p => p.Key.Item2, StringComparer.Ordinal))
             {
                 if (pair.Value.TriangleCount == 0) continue;
                 string name = $"R{pair.Key.Item1:00}_{pair.Key.Item2}";
-                var go = stage.Create(name, draw.transform);
+                var go = stage.Create("Shell_" + pair.Key.Item2, regionRoots[pair.Key.Item1]);
                 go.AddComponent<MeshFilter>().sharedMesh = KitArt.Keep(pair.Value.ToMesh(name));
                 var mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = KitArt.Get(pair.Key.Item2);
@@ -404,7 +426,7 @@ namespace HiddenRole
 
         void PersonalPanel(Transform personal, GameObject panel)
         {
-            panel.transform.localPosition = new Vector3(0, -40, 0);                 // out of sight until the page puts it in front of the head
+            panel.transform.localPosition = LoungeOffset + new Vector3(0, 0.5f, -3.5f); // out of the way (in the lounge) until the page puts it in front of the head
             Draw(panel.transform, "Back", KitArt.Quad(), "board", new Vector3(0, 0, 0.002f), new Vector3(0.52f, 0.46f, 1));
             var text = Label(panel.transform, "Text", "", 0.48f, 0.31f, 0.2f, Color.white, TextAlignmentOptions.TopLeft, true);
             text.transform.localPosition = new Vector3(0, 0.065f, 0);
@@ -435,7 +457,7 @@ namespace HiddenRole
                 stage.Object(b, key: keys[i]);
                 stage.Event(b, "click", hud, "Click" + names[i]);
             }
-            var shell = Draw(personal, "Shell", KitArt.Sphere(true), "shell", new Vector3(0, -40, 0), Vector3.one * 9.6f);
+            var shell = Draw(personal, "Shell", KitArt.Sphere(true), "shell", LoungeOffset, Vector3.one * 0.01f);
             stage.Object(shell, key: "shell");
             stage.Ref(shell);
             shell.SetActive(false);
@@ -505,9 +527,18 @@ namespace HiddenRole
             board.transform.localPosition = new Vector3(0, 1.75f, 3.9f);
             Draw(board.transform, "Back", KitArt.Quad(), "board", new Vector3(0, 0, 0.01f), new Vector3(3.2f, 2.1f, 1));
             var text = Label(board.transform, "Text", "Observer lounge", 3.0f, 1.95f, 0.9f, Color.white, TextAlignmentOptions.TopLeft, true);
+            text.transform.localPosition = new Vector3(-0.45f, 0, 0);
+            text.GetComponent<TextMeshPro>().rectTransform.sizeDelta = new Vector2(2.1f, 1.95f);
             stage.Object(text, key: "loungeText");
             stage.Ref(text);
             hudFields["loungeText"] = Text(text);
+            // the starter (or the world's owner) may stop the match from here; anyone out of it may leave the station
+            var abort = Button(board.transform, "Abort", "Stop match", new Vector3(1.1f, 0.6f, -0.005f), 0.8f, 0.24f, "buttonWarn", 0.75f);
+            stage.Object(abort, key: "loungeAbortButton");
+            stage.Event(abort, "click", hud, "ClickAbort");
+            var leave = Button(board.transform, "Leave", "Leave the station", new Vector3(1.1f, 0.28f, -0.005f), 0.8f, 0.24f, "button", 0.75f);
+            stage.Object(leave, key: "loungeLeaveButton");
+            stage.Event(leave, "click", hud, "ClickLeave");
         }
 
         // ------------------------------------------------------------------ the boarding pad outside
@@ -644,7 +675,7 @@ namespace HiddenRole
 
         void Consoles(Transform station)
         {
-            var parent = stage.Create("Consoles", station).transform;
+            Transform parent = null;
             var hatches = map["hatches"].Select(h => Floats(h["at"])).Select(a => new Vector2(a[0], a[1])).ToList();
             var fixtures = new Dictionary<int, MeshPart>();
             foreach (var job in map["jobs"])
@@ -662,6 +693,7 @@ namespace HiddenRole
                 if (!fixtures.TryGetValue(g, out var part)) fixtures[g] = part = new MeshPart();
                 part.Add(Slab(0.5f, 0.95f, 0.34f), Matrix4x4.TRS(pos + new Vector3(0, 0.475f, 0), yaw, Vector3.one));
                 // the screen (the bound object: the page colours it), tilted back on the pedestal
+                parent = regionRoots[g];
                 var screen = Draw(parent, $"Console{id:00}", KitArt.Quad(), "screen", pos + yaw * new Vector3(0, 1.08f, -0.06f), new Vector3(0.46f, 0.32f, 1f),
                                   yaw * Quaternion.Euler(35, 0, 0));
                 var box = screen.AddComponent<BoxCollider>();
@@ -674,14 +706,13 @@ namespace HiddenRole
                 name.transform.localPosition = pos + yaw * new Vector3(0, 1.45f, 0.05f);
                 name.transform.localRotation = yaw;
             }
-            foreach (var pair in fixtures) DrawPart(parent, $"Pedestals{pair.Key:00}", pair.Value, "fixture", Vector3.zero);
+            foreach (var pair in fixtures) DrawPart(regionRoots[pair.Key], "Pedestals", pair.Value, "fixture", Vector3.zero);
         }
 
         void FaultPanels(Transform station)
         {
-            var parent = stage.Create("Panels", station).transform;
             int n = 0;
-            var cabinets = new MeshPart();
+            var cabinetsBy = new Dictionary<int, MeshPart>();
             foreach (var p in map["panels"])
             {
                 var a = Floats(p["at"]);
@@ -689,6 +720,9 @@ namespace HiddenRole
                 var face = OpenSide(at);
                 var yaw = Quaternion.LookRotation(new Vector3(-face.x, 0, -face.y));
                 var pos = new Vector3(at.x - face.x * 0.2f, 0, at.y - face.y * 0.2f);
+                int g = Region(at.x, at.y);
+                var parent = regionRoots[g];
+                if (!cabinetsBy.TryGetValue(g, out var cabinets)) cabinetsBy[g] = cabinets = new MeshPart();
                 cabinets.Add(Slab(0.7f, 1.9f, 0.28f), Matrix4x4.TRS(pos + new Vector3(0, 0.95f, 0), yaw, Vector3.one));
                 var front = Draw(parent, "Panel" + n, KitArt.Quad(), "fault", pos + yaw * new Vector3(0, 1.2f, -0.145f), new Vector3(0.58f, 0.9f, 1), yaw);
                 var box = front.AddComponent<BoxCollider>();
@@ -700,7 +734,7 @@ namespace HiddenRole
                 label.transform.localRotation = yaw;
                 n++;
             }
-            DrawPart(parent, "Cabinets", cabinets, "fixture", Vector3.zero);
+            foreach (var pair in cabinetsBy) DrawPart(regionRoots[pair.Key], "Cabinets", pair.Value, "fixture", Vector3.zero);
         }
 
         // ------------------------------------------------------------------ map reading

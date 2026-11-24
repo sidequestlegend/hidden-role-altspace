@@ -1,6 +1,6 @@
 {
   "name": "hidden-role-single",
-  "timeout": 900,
+  "timeout": 1500,
   "players": 1,
   "elements": [
     "<script>window.__hrPlan = \"single\";</script>",

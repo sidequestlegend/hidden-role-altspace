@@ -20,6 +20,7 @@ import { emptyMatch, type Match, type PublicMatch, RingPosition } from "./Match.
 import type { PlayerLink } from "./PlayerLink.ts";
 import { Dist, STATION } from "./ShipMap.ts";
 import type { JobStation } from "./ShipMapData.ts";
+import PVS from "./region-pvs.json" with { type: "json" };
 
 /** The lounge is a sealed room this far below the station unless the snippet says where (PORT.md 5.7). */
 const LOUNGE_OFFSET = new Vector3(0, -70, 0);
@@ -36,6 +37,7 @@ const CLIP_ALARM = 1;
 export const ENTRY_POINT = new Vector2(6, -57.6);
 /** A console click on a hold job keeps Use down this much longer than the job needs, then lets go. */
 const HOLD_MARGIN = 0.35;
+
 
 function parseVector(text: string | undefined, fallback: Vector3): Vector3 {
   const parts = (text ?? "").trim().split(/\s+/).map(Number);
@@ -75,6 +77,9 @@ export class RuntimeHud extends Behaviour {
   /** Turned to face this player while a muster runs. */
   musterBoard: GameObject | null = null;
   creditsPanel: GameObject | null = null;
+  /** The station's drawn parts, a region of the map each (columns x rows over the play bounds, row by row from the south-west). */
+  regions: GameObject[] = [];
+  regionGrid: number[] = [PVS.cols, PVS.rows];
 
   // ---- local state --------------------------------------------------------------------------------------------
   settings!: Settings;
@@ -96,6 +101,7 @@ export class RuntimeHud extends Behaviour {
   private taps = 0;
   private lastWork = -1;
   private creditsOpen = false;
+  private lastRegionCheck = -1;
   /** What the local effects were last applied for. */
   private applied = { round: -1, state: MatchState.Lobby as number, alive: true, inMatch: false, placedRound: -1, slot: -1 };
   private returnPoint: Vector2 | null = null;
@@ -445,6 +451,7 @@ export class RuntimeHud extends Behaviour {
     if (this.autoReleaseAt > 0 && this.Time.time >= this.autoReleaseAt) this.Press(Btn.Use, false);
     this.Effects(m, slot);
     this.WorkBar(m, slot);
+    this.Regions();
     if (this.Time.frameCount % BEAT_TICKS === 0) {
       void this.SendBeat(m, slot);
       this.Refresh();
@@ -482,9 +489,10 @@ export class RuntimeHud extends Behaviour {
     // A new match, or a reload in the middle of one: go to the start point once.
     if (inMatch && m.st === MatchState.Playing && a.placedRound !== m.r) {
       a.placedRound = m.r;
-      const placed = this.Storage.get<number>("placed", -1);
-      if (placed !== m.r * 1000 + slot) {
-        this.Storage.set("placed", m.r * 1000 + slot);
+      // (the match's start time names it: match numbers start again when a room's state is reset, a device's storage does not)
+      const placed = this.Storage.get<string>("placed", "");
+      if (placed !== `${m.t0}:${slot}`) {
+        this.Storage.set("placed", `${m.t0}:${slot}`);
         if (alive) this.Teleport("start", new Vector2(m.sp[slot]![0]!, m.sp[slot]![1]!), STATION.MeetingPoint);
       }
       this.seq = 0;
@@ -781,6 +789,38 @@ export class RuntimeHud extends Behaviour {
       if (radius > 0) this.shell.transform.localScale = new Vector3(radius * 2, radius * 2, radius * 2);
       if (this.shell.activeSelf !== radius > 0) this.shell.SetActive(radius > 0);
     }
+  }
+
+  /**
+   * Draws only the regions of the station that can be seen from the local player's region (a kit cannot carry baked
+   * occlusion data, so the visible sets are worked out ahead by tools/sightlines.ts: src/region-pvs.json). Every region
+   * before the page knows where the player is and from outside the station; none from the lounge.
+   */
+  private Regions(): void {
+    if (!this.regions.length || this.Time.time - this.lastRegionCheck < 0.5) return;
+    this.lastRegionCheck = this.Time.time;
+    const w = this.Input.Position;
+    const [cols, rows] = [this.regionGrid[0] ?? 4, this.regionGrid[1] ?? 3];
+    const b = STATION.PlayBounds;
+    const p = w ? this.ToMap(w) : null;
+    const below = !!w && w.y < this.origin.y - 20;
+    const grid = cols === PVS.cols && rows === PVS.rows;
+    let from = -1;
+    if (p && grid && this.InsideStation(w!)) {
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor(((p.x - b.xMin) / b.width) * cols)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor(((p.y - b.yMin) / b.height) * rows)));
+      from = cy * cols + cx;
+    }
+    for (let i = 0; i < this.regions.length; i++) {
+      const on = below ? false : from < 0 ? true : PVS.visible[from]![i] === "1";
+      const region = this.regions[i]!;
+      if (region.activeSelf !== on) region.SetActive(on);
+    }
+  }
+
+  /** How many regions are drawn now (tests). */
+  get RegionsOn(): number {
+    return this.regions.filter((r) => r.activeSelf).length;
   }
 
   /** A bar's fill, scaled along x from its left end (0 hides it). */

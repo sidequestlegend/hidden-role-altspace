@@ -81,10 +81,19 @@
     return { unity: w, page: at };
   }
 
+  /**
+   * Turns to an object and puts the mouse on it. "look" centres it on the screen, where the last object clicked
+   * usually was too: the SDK's desktop pointer then still acts on that one (seen: a Start click that pressed Stop
+   * again), so the mouse is first moved off it and back.
+   */
   async function lookAt(key) {
     const pos = await probe("pos", path(key));
     if (pos.startsWith("error")) return null;
     await cmd("look " + pos);
+    const v = num(pos);
+    await cmd(`pointer ${v[0]} ${v[1] - 0.25} ${v[2]}`);
+    await cmd("wait 3");
+    await cmd("pointer " + pos);
     return pos;
   }
 
@@ -107,20 +116,24 @@
     let legs = 0;
     let lastReply = "";
     for (let attempt = 0; attempt < 60; attempt++) {
-      const here = dbg().here();
+      // where the page thinks the head is; before the player has moved at all, the page has no pose yet: Unity's word
+      let here = dbg().here();
       if (!here) {
-        await sleep(200);
-        continue;
+        const w = (await where()).feet;
+        here = dbg().toMap(w[0], w[1], w[2]);
       }
       const left = Math.hypot(tx - here[0], ty - here[1]);
-      if (left <= (stopShort || 0.3)) return { ok: true, legs, left };
+      if (left <= (stopShort || 0.3) + 0.15) return { ok: true, legs, left };
       const route = dbg().route(here[0], here[1], tx, ty, 0.3);
       if (!route.length) return { ok: false, legs, left, why: "no route" };
-      let next = route[0];
+      // the first route point not already underfoot (the rules' steering can name the grid point the walker stands on)
+      let at = route.findIndex((q) => Math.hypot(q[0] - here[0], q[1] - here[1]) > 0.35);
+      if (at < 0) at = route.length - 1;
+      let next = route[at];
       const d = Math.hypot(next[0] - here[0], next[1] - here[1]);
       // stop short on the last leg
-      if (route.length === 1 && stopShort) {
-        const k = Math.max(0, (d - stopShort + 0.1) / d);
+      if (at === route.length - 1 && stopShort) {
+        const k = Math.max(0, (d - stopShort * 0.6) / d);
         next = [here[0] + (next[0] - here[0]) * k, here[1] + (next[1] - here[1]) * k];
       }
       const w = world(next[0], next[1]);
@@ -175,8 +188,12 @@
   }
 
   async function startMatch(label) {
-    await clickKey("startButton", "Start");
-    const ok = await until(() => m().st === ST.Playing, 15000);
+    let ok = false;
+    for (let i = 0; i < 3 && !ok; i++) {
+      await clickKey("startButton", "Start");
+      ok = await until(() => m().st === ST.Playing, 8000);
+      if (!ok) say("INFO", `Start did not take (try ${i + 1}): referee ${dbg().isReferee()}, joined ${dbg().joined()}, state ${m().st}`);
+    }
     const mm = m();
     check(!!ok, label, `state ${mm.st}, roster ${mm.sl.map((s) => s.n + (s.b ? "*" : "")).join(", ")}`);
     return !!ok;
@@ -248,24 +265,26 @@
   async function single() {
     if (!(await waitStarted())) return;
     await sleep(2000);
-    await stats("at the spawn, before walking");
+    await stats(`at the spawn, before walking (regions drawn ${dbg().regionsOn()} of 30)`);
     await shot("commons", world(-6, -9, 1.7), world(0, 6, 1.4), 75);
     if (!(await joinLobby())) return;
     const referee = await until(() => dbg().isReferee(), 20000, 250);
     check(!!referee, "the one lobby player is elected referee (declared candidates)", "referee " + JSON.stringify(dbg().referee()));
     let matchNo = 0;
-    while (matchNo < 4) {
+    while (matchNo < 6) {
       matchNo++;
       // the test aid of the Node tests: Bot 1 is the saboteur, so the person is a technician
       dbg().force(["bot-1"]);
+      const startsBefore = dbg().moves().filter((v) => v.why === "start").length;
       if (!(await startMatch(`a match starts with five bots (match ${matchNo})`))) return;
       const mm = m();
       check(mm.sl.length === 6 && mm.sl.filter((s) => s.b).length === 5, "the roster is the person and five bots", mm.sl.map((s) => s.n).join(", "));
       await until(() => dbg().mine() && dbg().mine().n === m().r, 8000);
       const slot = dbg().slot();
       check(dbg().role() === 1, "the person's own role arrives sealed: technician", `role ${ROLE[dbg().role()]}, public roles ${JSON.stringify(m().ro)}`);
-      const start = mm.sp[slot];
-      await sleep(1500);
+      await until(() => dbg().moves().filter((v) => v.why === "start").length > startsBefore, 5000);
+      await sleep(1200);
+      const start = m().sp[slot];
       const moved = dbg().moves().filter((v) => v.why === "start").pop();
       const w = await where();
       const expected = world(start[0], start[1]);
@@ -284,7 +303,7 @@
         say("INFO", `nearest job: ${pick.job.id} ${pick.job.name} (${KIND[pick.job.kind]}), route ${pick.length.toFixed(1)} m`);
         const t0 = Date.now();
         const walk = await walkTo(pick.job.x, pick.job.y, 0.7, "to console " + pick.job.id);
-        await stats("on the way, at console " + pick.job.id);
+        await stats(`on the way, at console ${pick.job.id} (regions drawn ${dbg().regionsOn()} of 30)`);
         check(walk.ok, "the person walks to a job console through the station (capsule against the kit's colliders)", `${walk.legs} legs in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${walk.why || ""}`);
         if (walk.ok && m().st === ST.Playing && m().al[slot] === 1) {
           const cdBefore = m().cd;
@@ -387,13 +406,16 @@
 
   async function nextMatch() {
     if (m().st !== ST.Lobby) {
-      await clickKey("abortButton", "Stop match");
+      const below = (await where()).feet[1] < -60;
+      await clickKey(below ? "loungeAbortButton" : "abortButton", below ? "Stop match (lounge board)" : "Stop match");
       await until(() => m().st === ST.Lobby, 10000);
     }
     await walkTo(0, 9.2, 0.3, "back to the hub board");
   }
 
+  let musterVotes = 0;
   async function musterAndVote(slot, before, bodySlot) {
+    musterVotes = dbg().events("vote").filter((e) => e.actor === slot).length;
     await sleep(1500);
     const ring = dbg().moves().filter((v) => v.why === "ring").pop();
     const w = await where();
@@ -413,8 +435,11 @@
     check(target >= 0 && label === x.sl[target].n, "the muster board's buttons name the living", `button ${target}: '${label}'`);
     if (target >= 0) await clickKey("vote" + target, "vote for " + x.sl[target].n);
     else await clickKey("abstainButton", "Abstain");
-    const voted = await until(() => m().vo[slot] === 1, 5000);
-    check(!!voted, "the person's ballot is counted (who voted is public, the choice is sealed)", `voted ${JSON.stringify(m().vo)}`);
+    const votesBefore = musterVotes;
+    const voted = await until(() => m().vo[slot] === 1 || dbg().events("vote").filter((e) => e.actor === slot).length > votesBefore, 5000);
+    musterVotes = dbg().events("vote").filter((e) => e.actor === slot).length;
+    const mine = dbg().events("vote").filter((e) => e.actor === slot).pop();
+    check(!!voted, "the person's ballot is counted (who voted is public, the choice is sealed)", `referee's record: ${JSON.stringify(mine)}, public voted flags ${JSON.stringify(m().vo)}`);
     const resolved = await until(() => m().st !== ST.Muster, 40000);
     const result = await probe("text", path("musterText"));
     check(!!resolved, "the vote resolves when all have voted", result.replace(/\n/g, " / "));
@@ -568,6 +593,7 @@
 
   window.__hrRun = async function (plan) {
     try {
+      if (plan === "idle") await sleep(900000);
       if (plan === "single") await single();
       else if (plan === "multi") await multi();
     } catch (e) {

@@ -164,6 +164,99 @@
         "personalPanel": {
           "$obj": "personalPanel"
         },
+        "regionGrid": [6, 5],
+        "regions": [
+          {
+            "$obj": "region00"
+          },
+          {
+            "$obj": "region01"
+          },
+          {
+            "$obj": "region02"
+          },
+          {
+            "$obj": "region03"
+          },
+          {
+            "$obj": "region04"
+          },
+          {
+            "$obj": "region05"
+          },
+          {
+            "$obj": "region06"
+          },
+          {
+            "$obj": "region07"
+          },
+          {
+            "$obj": "region08"
+          },
+          {
+            "$obj": "region09"
+          },
+          {
+            "$obj": "region10"
+          },
+          {
+            "$obj": "region11"
+          },
+          {
+            "$obj": "region12"
+          },
+          {
+            "$obj": "region13"
+          },
+          {
+            "$obj": "region14"
+          },
+          {
+            "$obj": "region15"
+          },
+          {
+            "$obj": "region16"
+          },
+          {
+            "$obj": "region17"
+          },
+          {
+            "$obj": "region18"
+          },
+          {
+            "$obj": "region19"
+          },
+          {
+            "$obj": "region20"
+          },
+          {
+            "$obj": "region21"
+          },
+          {
+            "$obj": "region22"
+          },
+          {
+            "$obj": "region23"
+          },
+          {
+            "$obj": "region24"
+          },
+          {
+            "$obj": "region25"
+          },
+          {
+            "$obj": "region26"
+          },
+          {
+            "$obj": "region27"
+          },
+          {
+            "$obj": "region28"
+          },
+          {
+            "$obj": "region29"
+          }
+        ],
         "shell": {
           "$obj": "shell"
         },
@@ -939,9 +1032,21 @@
       "kind": "click",
       "method": "ClickAbstain",
       "object": "abstainButton"
+    },
+    {
+      "behaviour": "hud",
+      "kind": "click",
+      "method": "ClickAbort",
+      "object": "loungeAbortButton"
+    },
+    {
+      "behaviour": "hud",
+      "kind": "click",
+      "method": "ClickLeave",
+      "object": "loungeLeaveButton"
     }
   ],
-  "hash": "09efd472f362ab3ac046cad67aa2cdf7e7fda236",
+  "hash": "93cfe78f7a38f0248fba38b674565cb428a15cc9",
   "objects": {
     "abortButton": {
       "click": true,
@@ -1120,154 +1225,154 @@
     "console0": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console00",
+      "path": "Station/Regions/R14/Console00",
       "seat": false,
       "sync": "none"
     },
     "console1": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console01",
+      "path": "Station/Regions/R12/Console01",
       "seat": false,
       "sync": "none"
     },
     "console10": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console10",
+      "path": "Station/Regions/R10/Console10",
       "seat": false,
       "sync": "none"
     },
     "console11": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console11",
+      "path": "Station/Regions/R17/Console11",
       "seat": false,
       "sync": "none"
     },
     "console12": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console12",
+      "path": "Station/Regions/R11/Console12",
       "seat": false,
       "sync": "none"
     },
     "console13": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console13",
+      "path": "Station/Regions/R04/Console13",
       "seat": false,
       "sync": "none"
     },
     "console14": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console14",
+      "path": "Station/Regions/R04/Console14",
       "seat": false,
       "sync": "none"
     },
     "console15": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console15",
+      "path": "Station/Regions/R03/Console15",
       "seat": false,
       "sync": "none"
     },
     "console16": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console16",
+      "path": "Station/Regions/R03/Console16",
       "seat": false,
       "sync": "none"
     },
     "console17": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console17",
+      "path": "Station/Regions/R03/Console17",
       "seat": false,
       "sync": "none"
     },
     "console18": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console18",
+      "path": "Station/Regions/R07/Console18",
       "seat": false,
       "sync": "none"
     },
     "console19": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console19",
+      "path": "Station/Regions/R08/Console19",
       "seat": false,
       "sync": "none"
     },
     "console2": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console02",
+      "path": "Station/Regions/R19/Console02",
       "seat": false,
       "sync": "none"
     },
     "console20": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console20",
+      "path": "Station/Regions/R06/Console20",
       "seat": false,
       "sync": "none"
     },
     "console21": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console21",
+      "path": "Station/Regions/R07/Console21",
       "seat": false,
       "sync": "none"
     },
     "console3": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console03",
+      "path": "Station/Regions/R19/Console03",
       "seat": false,
       "sync": "none"
     },
     "console4": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console04",
+      "path": "Station/Regions/R25/Console04",
       "seat": false,
       "sync": "none"
     },
     "console5": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console05",
+      "path": "Station/Regions/R27/Console05",
       "seat": false,
       "sync": "none"
     },
     "console6": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console06",
+      "path": "Station/Regions/R28/Console06",
       "seat": false,
       "sync": "none"
     },
     "console7": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console07",
+      "path": "Station/Regions/R22/Console07",
       "seat": false,
       "sync": "none"
     },
     "console8": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console08",
+      "path": "Station/Regions/R16/Console08",
       "seat": false,
       "sync": "none"
     },
     "console9": {
       "click": true,
       "grab": false,
-      "path": "Station/Consoles/Console09",
+      "path": "Station/Regions/R23/Console09",
       "seat": false,
       "sync": "none"
     },
@@ -1296,28 +1401,28 @@
     "faultPanel0": {
       "click": true,
       "grab": false,
-      "path": "Station/Panels/Panel0",
+      "path": "Station/Regions/R04/Panel0",
       "seat": false,
       "sync": "none"
     },
     "faultPanel1": {
       "click": true,
       "grab": false,
-      "path": "Station/Panels/Panel1",
+      "path": "Station/Regions/R03/Panel1",
       "seat": false,
       "sync": "none"
     },
     "faultPanel2": {
       "click": true,
       "grab": false,
-      "path": "Station/Panels/Panel2",
+      "path": "Station/Regions/R22/Panel2",
       "seat": false,
       "sync": "none"
     },
     "faultPanel3": {
       "click": true,
       "grab": false,
-      "path": "Station/Panels/Panel3",
+      "path": "Station/Regions/R07/Panel3",
       "seat": false,
       "sync": "none"
     },
@@ -1360,6 +1465,20 @@
       "click": true,
       "grab": false,
       "path": "Hub/Board/Leave",
+      "seat": false,
+      "sync": "none"
+    },
+    "loungeAbortButton": {
+      "click": true,
+      "grab": false,
+      "path": "Lounge/Board/Abort",
+      "seat": false,
+      "sync": "none"
+    },
+    "loungeLeaveButton": {
+      "click": true,
+      "grab": false,
+      "path": "Lounge/Board/Leave",
       "seat": false,
       "sync": "none"
     },
@@ -1437,6 +1556,216 @@
       "click": false,
       "grab": false,
       "path": "Personal/Panel",
+      "seat": false,
+      "sync": "none"
+    },
+    "region00": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R00",
+      "seat": false,
+      "sync": "none"
+    },
+    "region01": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R01",
+      "seat": false,
+      "sync": "none"
+    },
+    "region02": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R02",
+      "seat": false,
+      "sync": "none"
+    },
+    "region03": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R03",
+      "seat": false,
+      "sync": "none"
+    },
+    "region04": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R04",
+      "seat": false,
+      "sync": "none"
+    },
+    "region05": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R05",
+      "seat": false,
+      "sync": "none"
+    },
+    "region06": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R06",
+      "seat": false,
+      "sync": "none"
+    },
+    "region07": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R07",
+      "seat": false,
+      "sync": "none"
+    },
+    "region08": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R08",
+      "seat": false,
+      "sync": "none"
+    },
+    "region09": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R09",
+      "seat": false,
+      "sync": "none"
+    },
+    "region10": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R10",
+      "seat": false,
+      "sync": "none"
+    },
+    "region11": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R11",
+      "seat": false,
+      "sync": "none"
+    },
+    "region12": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R12",
+      "seat": false,
+      "sync": "none"
+    },
+    "region13": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R13",
+      "seat": false,
+      "sync": "none"
+    },
+    "region14": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R14",
+      "seat": false,
+      "sync": "none"
+    },
+    "region15": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R15",
+      "seat": false,
+      "sync": "none"
+    },
+    "region16": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R16",
+      "seat": false,
+      "sync": "none"
+    },
+    "region17": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R17",
+      "seat": false,
+      "sync": "none"
+    },
+    "region18": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R18",
+      "seat": false,
+      "sync": "none"
+    },
+    "region19": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R19",
+      "seat": false,
+      "sync": "none"
+    },
+    "region20": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R20",
+      "seat": false,
+      "sync": "none"
+    },
+    "region21": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R21",
+      "seat": false,
+      "sync": "none"
+    },
+    "region22": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R22",
+      "seat": false,
+      "sync": "none"
+    },
+    "region23": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R23",
+      "seat": false,
+      "sync": "none"
+    },
+    "region24": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R24",
+      "seat": false,
+      "sync": "none"
+    },
+    "region25": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R25",
+      "seat": false,
+      "sync": "none"
+    },
+    "region26": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R26",
+      "seat": false,
+      "sync": "none"
+    },
+    "region27": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R27",
+      "seat": false,
+      "sync": "none"
+    },
+    "region28": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R28",
+      "seat": false,
+      "sync": "none"
+    },
+    "region29": {
+      "click": false,
+      "grab": false,
+      "path": "Station/Regions/R29",
       "seat": false,
       "sync": "none"
     },

@@ -18,7 +18,7 @@ namespace HiddenRole
         // ------------------------------------------------------------------ colours of the station
 
         public static readonly Color Deep = Hex(0x0B1A24);
-        public static readonly Color Hull = Hex(0x2D3E48);
+        public static readonly Color Hull = Hex(0x5E7884);
         public static readonly Color Metal = Hex(0x3E5560);
         public static readonly Color MetalDark = Hex(0x22313A);
         public static readonly Color Teal = Hex(0x2FB8B0);

@@ -230,13 +230,26 @@ namespace HiddenRole
         /// renderers can be culled one region at a time); `wallMaterial` may pick another material for a wall (windows).
         /// </summary>
         public static Shell Build(OpenGrid grid, float height, float baseY, Func<double, double, int> region,
-                                  Func<OpenGrid.Wall, string> wallMaterial, float maxThickness = 0.25f, float tile = 2f)
+                                  Func<OpenGrid.Wall, string> wallMaterial, float maxThickness = 0.25f, float tile = 2f,
+                                  double[] xCuts = null, double[] yCuts = null)
         {
             var shell = new Shell();
+            xCuts = xCuts ?? new double[0];
+            yCuts = yCuts ?? new double[0];
+            // a span cut at the region lines, so each drawn piece lies in one region (the page draws regions one by one)
+            IEnumerable<(double, double)> Pieces(double a, double b, double[] cuts)
+            {
+                double start = a;
+                foreach (var c in cuts.Where(c => c > a && c < b).OrderBy(c => c)) { yield return (start, c); start = c; }
+                yield return (start, b);
+            }
             float y0 = baseY, y1 = baseY + height, roof = y1 + 0.2f;
             Vector2 U(double a, double b) => new Vector2((float)(a / tile), (float)(b / tile));
-            foreach (var r in grid.Rectangles())
+            foreach (var whole in grid.Rectangles())
+            foreach (var (px0, px1) in Pieces(whole.X0, whole.X1, xCuts))
+            foreach (var (py0, py1) in Pieces(whole.Y0, whole.Y1, yCuts))
             {
+                var r = new MapRect(px0, py0, px1 - px0, py1 - py0);
                 int g = region(r.CX, r.CY);
                 float x0 = (float)r.X0, x1 = (float)r.X1, z0 = (float)r.Y0, z1 = (float)r.Y1;
                 shell.Part(g, "floor").Quad(new Vector3(x0, y0, z0), new Vector3(x1, y0, z0), new Vector3(x1, y0, z1), new Vector3(x0, y0, z1), Vector3.up,
@@ -250,8 +263,12 @@ namespace HiddenRole
                 shell.Floors++;
                 shell.OpenArea += (x1 - x0) * (z1 - z0);
             }
-            foreach (var w in grid.Walls(maxThickness))
+            foreach (var whole in grid.Walls(maxThickness))
+            foreach (var (pa, pb) in Pieces(whole.From, whole.To, whole.Vertical ? yCuts : xCuts))
             {
+                var w = whole;
+                w.From = pa;
+                w.To = pb;
                 shell.WallCount++;
                 float at = (float)w.At, from = (float)w.From, to = (float)w.To, t = (float)w.Thickness;
                 float outer = at - w.Facing * t;                                          // the wall's thickness goes away from the open side

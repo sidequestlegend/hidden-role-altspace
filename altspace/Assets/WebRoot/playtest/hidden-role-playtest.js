@@ -278,10 +278,13 @@
       `page at ${fmt(pageThinks || [])}, referee's position ${fmt(ref || [])}, ${dist2(ref || here, here).toFixed(1)} m from the start after ${secs.toFixed(1)} s`);
     say("INFO", "back: " + (await cmd("place " + back.map((v) => v.toFixed(2)).join(" "))));
     const caught = await until(() => {
+      if (m().st !== ST.Playing || m().al[slot] !== 1) return "out";
       const r = dbg().refPos(slot);
-      return r && dist2(r, here) < 0.5;
+      return r && dist2(r, here) < 0.5 ? "back" : null;
     }, 10000, 250);
-    check(!!caught, "put back where it was, the referee's position comes back to the person", fmt(dbg().refPos(slot) || []));
+    // (the referee's position is the one the saboteur bot hunts: a downed person's position stays where it fell)
+    if (caught === "out") say("INFO", `the person was downed or the match moved on (state ${m().st}) before the referee's position came back`);
+    else check(caught === "back", "put back where it was, the referee's position comes back to the person", fmt(dbg().refPos(slot) || []));
   }
 
   // ---- rung 3: one person and five bots ---------------------------------------------------------------------------
@@ -563,6 +566,9 @@
       await until(() => heard.find((h) => h.kind === "joined"), 60000, 250);
       await until(() => dbg().isReferee(), 20000, 250);
       const bUid = heard.find((h) => h.kind === "joined").uid;
+      // B's lobby flag reaches this page through B's user state, after B's own message: wait until the lobby lists B
+      const listed = await until(() => dbg().lobby().indexOf(bUid) >= 0, 15000, 250);
+      if (!listed) say("INFO", "B is not in this page's lobby after 15 s: " + JSON.stringify(dbg().lobby()));
       dbg().force([bUid]);
       await startMatch("a match starts with both players and three bots");
     } else {

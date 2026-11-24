@@ -1,11 +1,66 @@
 # hidden-role: test evidence
 
-Everything here ran on 2026-11-24 on Windows, Unity 6000.3.21f1, Creator SDK 4.0.29, in the Unity editor (project
-`altspace/`, Play-mode page port 44000). Nothing ran in the Altspace app, on a Quest, or with controllers (rung 5:
-not run; worlds stay Private).
+## Fix pass, 2026-11-25 (portkit 812f285, the review's findings)
 
-The runtime in `ts/portkit/` mirrors portkit commit `1118ef0` (the fixed kit; `tools/sync.sh` run again when the
-Unity project was made: no change). The game already declared `Match.networkCallable = ["CmdStart", "CmdAbort"]` (its
+Everything in this section ran on 2026-11-25 on Windows, Unity 6000.3.21f1, Creator SDK 4.0.29, in the Unity editor
+(project `altspace/`, Play-mode page port 44000), after re-syncing `ts/portkit/` and
+`Packages/com.altspacegames.portkit/` to portkit `812f285` and fixing the findings of `REVIEW-FINDINGS.md`
+("hidden-role"). Nothing ran in the Altspace app, on a Quest, or with controllers (rung 5: not run).
+
+- **Rung 0/1:** `npm test`: typecheck and lint clean; **48 tests, 48 pass** (was 42: the old "position jump not trusted
+  for 1.5 s" scenario is replaced, `test/fixpass.test.ts` adds 7, each failing before its fix; see PORT.md section 7).
+- **Rung 2:** `PortKit/Kit/Check` PASS (graphs, 124 bindings, both bundles); `HiddenRole/Check Walkable` PASS, the
+  same three lines as below (70,654 of 70,654 clear points free; 0 reachable points blocked; all connected reached).
+  Bundles Android **1,112 KiB** (was 1,100), Windows **1,154 KiB** (was 1,141): the relay graph grew with portkit's
+  ops (285 to 308 KiB of graph blobs) and the bundles now carry `MIT-hidden-role.txt`, `MIT-portkit.txt` and
+  `LiberationSans - OFL.txt`. Script `pk-hidden-role.js` 487,538 bytes (was 454,234; portkit's runtime grew and the
+  banner now holds both MIT notices in full).
+- **Rung 3** (`playtest/single.json`): three runs. Run 1: 49 passed, 1 failed: the new "put back, the referee's
+  position comes back" check failed because the saboteur bot downed the person during it (a downed person's position
+  stays where it fell); the check now stands down when that happens. Runs 2 and 3, in a row: **28 passed, 0 failed**
+  and **35 passed, 0 failed**, 0 console errors (`playtest/evidence_single.txt` is run 3). New checks of this pass:
+
+```
+PASS a jump the page did not make is not taken by the referee (its own position follows at most at a run): page at 0.00,-3.00, referee's position 36.09,31.15, 8.5 m from the start after 1.0 s
+PASS put back where it was, the referee's position comes back to the person: 29.43,36.33
+PASS an eliminated player is sent to the bunkroom, 70 m down: -3.00 -69.95 4.50
+PASS a downed bot's jobs stay in the hub board's total until the death is seen: Jobs done: 4 / 35, highest total 35
+PASS the muster board says why and who: Main Editor sounded the alarm over Bot 2. / Vote: 27s left
+PASS during a fault the job list gives no directions (upstream hid its pointer): You are a TECHNICIAN / Shift clock: 879s / FAULT: Blackout - reset it at its panel / Jobs (5 left): / Seat the flood dampers (Tap) - Ballast Control 38 m / Read the reserve bottles (Hold) - Scrubber Room 56 m
+```
+
+  (The last line is from run 1: a fault ran while the person was alive only there; in runs 2 and 3 none did, and the
+  page says so.) Pictures: `playtest/evidence_single_*.jpg` (the muster board with the new wording and the Pass
+  button).
+- **Rung 4** (`playtest/multi.json`): five runs. Run 1: 31 passed, 4 failed: A started the first match before its page listed B in the lobby, so B was not dealt in (the test now waits for that). Run 2: 35 passed, 0 failed. Run 3: the main editor's page never started its script (no check ran on it; 5 passed, 5 failed, TIMEOUT: the test harness, not the game). Runs 4 and 5, in a row: **35 passed, 0 failed** each, 0 console errors (`playtest/evidence_multi.txt` is run 5). New checks of this pass, on B's reloaded page while the second match runs:
+
+```
+[main] PASS the late joiner's panel and the bunkroom board say so: Observing this match. / You are out of the match: watch from here. / Leave opens when the match ends.
+[main] PASS Leave is refused while the match runs: moves [], Unity feet -3.00 -69.95 4.50
+[main] PASS an onlooker who reaches the boarding pad is sent back to the bunkroom at once: -3.00 -69.95 4.50 moves [{"why":"lounge","x":-3,"y":-1.5}]
+[main] PASS and in the lobby the reloaded page's digest is A's: f2173741 / f2173741
+[vp-...] PASS both pages hold the same state after the match (digest, in the lobby): cce284ff / cce284ff
+```
+- **Artifacts:** `PortKit/Kit/Export Artifacts` -> `dist/` (not checked in): `android/hidden-role` (1,138,777 bytes),
+  `windows/hidden-role` (1,182,177 bytes), `pk-hidden-role.js` (487,538 bytes), `hidden-role.jpg` (the station only,
+  `PhotoRoot`), `hidden-role.snippet.html`, `manifest.json` (footprint 123.5 x 73.4 x 112.85 m: the bunkroom 70 m
+  down is still inside the footprint, which `PhotoRoot` does not change).
+
+What changed in the tests themselves: the drivers of the Node tests run at 4.2 m/s (was 6 m/s, faster than the
+referee now follows); the Play-mode test uses portkit's `walk`, `where`, `place` and pointer (its own copies and the
+mouse nudge are gone); A waits until its page lists B in the lobby before starting the first two-player match (a
+race seen once in this pass).
+
+---
+
+## First pass, 2026-11-24 (portkit 1118ef0)
+
+Everything below ran on 2026-11-24 on Windows, Unity 6000.3.21f1, Creator SDK 4.0.29, in the Unity editor (project
+`altspace/`, Play-mode page port 44000). Nothing ran in the Altspace app, on a Quest, or with controllers (rung 5:
+not run; worlds stay Private). Its evidence files were replaced by this pass's; the names it shows ("Observer lounge",
+"ALARM: X found Y down", "Abstain") are the old ones.
+
+The runtime in `ts/portkit/` then mirrored portkit commit `1118ef0`. The game already declared `Match.networkCallable = ["CmdStart", "CmdAbort"]` (its
 only `SendCommand` targets; it sends no network events) and had no local workarounds left.
 
 How to run each rung again:
@@ -88,7 +143,7 @@ DONE
 `playtest/single.json`: a hand-written `<bs-snippet>` (`bots="5"`, `shift-seconds="900"`, `breach-seconds="600"`,
 placed at `0 0.05 6` so the editor's spawn is in the Commons) with the script and the bundles from the test's own
 server; the page script `Assets/WebRoot/playtest/hidden-role-playtest.js`. Clicks go through the SDK's desktop
-player (portkit's InputSim mouse); walking through this project's `walk` command, because Play mode's desktop player
+player (portkit's InputSim mouse); walking through this project's `walk` command (portkit's own since 812f285), because Play mode's desktop player
 is a fly camera that passes through walls: a capsule of radius 0.25 m, 1.7 m tall, moved at 3.5 m/s along the
 rules' own route and slid along whatever solid it meets (`HiddenRoleTools.cs`), so a walk that arrives is one the
 kit's colliders allow. The test aid of the Node tests (`Match.forcedSaboteurs`) names Bot 1 as the saboteur so the

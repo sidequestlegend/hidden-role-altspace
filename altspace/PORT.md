@@ -6,7 +6,8 @@ repository and authors: see `README.md` of this repository, "Credits"); its name
 and look are this port's own. Nothing from the commercial game the upstream imitates is used: not its name, role names,
 terms, task or sabotage names, room names, map layout, look or sounds.
 
-Written 2026-11-24. Upstream commit `4c8d3e1`. Nothing upstream was opened in Unity; the TypeScript rules run and are
+Written 2026-11-24; fix pass 2026-11-25 (portkit 812f285, the independent review's findings: see sections 3, 5
+"Trust", 8 Q3 and `TESTS.md`). Upstream commit `4c8d3e1`. Nothing upstream was opened in Unity; the TypeScript rules run and are
 tested in Node on portkit's fake room (rung 1). The Unity kit was built the same day (section 11): the station is
 generated from the map data, nothing upstream is imported, and rungs 2 to 4 pass in the editor (`TESTS.md`).
 
@@ -24,11 +25,11 @@ Contents: 1 Status, 2 Names and terms, 3 Decisions and deliberate differences, 4
 | Hidden information | Done: roles and jobs by sealed delivery; input as fixed-rate sealed beats; tested on contents, sizes and timing |
 | Referee | Done: `"declared"` candidates (lobby players only); any referee change voids a running match |
 | Bots | Done: upstream's bots translated, an option (`bots` setting) |
-| Tests | `npm test`: typecheck, lint, **42 tests, 42 pass**: 9 golden-vector suites against the upstream C# (dotnet 8), 12 rules tests, 16 fake-room scenarios, 3 secrecy tests, 2 kit tests (console clicks per job kind, the bars, the post, a body marker, Leave, the boarding pad, the drawn regions) |
-| Build | `npm run build`: `Assets/WebRoot/pk-hidden-role.js`, 454 KB |
+| Tests | `npm test`: typecheck, lint, **48 tests, 48 pass**: 9 golden-vector suites against the upstream C# (dotnet 8), 12 rules tests, 15 fake-room scenarios, 3 secrecy tests, 2 kit tests (console clicks per job kind, the bars, the post, a body marker, Leave, the boarding pad, the drawn regions), 7 tests of the review's findings (`fixpass.test.ts`) |
+| Build | `npm run build`: `Assets/WebRoot/pk-hidden-role.js`, 487,538 bytes (the game's and portkit's MIT notices in its banner) |
 | `bindings.json` | Written by the kit builder (124 objects, 62 refs, 51 behaviours, 24 events) |
-| Unity kit (section 11) | Built: `Assets/Kit/hidden-role.prefab` by `Assets/Kit/Editor/HiddenRoleKitBuilder.cs`; bundles Android 1,100 KiB, Windows 1,141 KiB, both PASS the app's kit check |
-| Rungs (`TESTS.md`) | 0 and 1 pass; 2 passes (and the collider check against the rules' walkable test); 3 passes (one person and five bots, 25 of 25); 4 passes (two players and three bots, 33 of 33, twice in a row); `dist/` exported |
+| Unity kit (section 11) | Built: `Assets/Kit/hidden-role.prefab` by `Assets/Kit/Editor/HiddenRoleKitBuilder.cs`; bundles Android 1,112 KiB, Windows 1,154 KiB, both PASS the app's kit check; licence texts in the bundles |
+| Rungs (`TESTS.md`) | Again after the fix pass (portkit 812f285, 2026-11-25): 0 and 1 pass; 2 passes (and the collider check against the rules' walkable test); 3 passes twice in a row (one person and five bots, 28 of 28 and 35 of 35, with new checks for the referee's positions, the jobs total and the wording); 4 passes twice in a row (two players and three bots, 35 of 35 each, with the bunkroom's Leave refused and the boarding pad sent back); `dist/` exported |
 | Checklist (section 4, 82 items) | **60 Done, 21 Changed (deliberately), 0 Partial, 1 Left out** |
 
 ## 2. Names and terms
@@ -373,8 +374,8 @@ ceiling; bunkroom 70 m below the station.
 | `kit.test.ts` | 2 | With the kit builder's bindings: console clicks for every job kind, the work bar and the jobs bars; the muster post and a body marker clicked; Leave and the boarding pad in the lobby; the drawn regions |
 | `fixpass.test.ts` | 7 | The review's findings, each failing before its fix: 1 the downed and observers kept out of earshot (Leave and Enter refused, the boarding pad, 30 m out, the roof, 45 m up, the Commons; 55 m out left alone; the jobs total unchanged at the kill); 2 a claimed jump is not taken, the referee's position runs at most 4.6 m/s on open floor and arrives, never inside a prop, a 7 m hop taken at once; 3 the published total with waves, then D1's once seen; 4 no hooks on a published page; 6 a leaver's body; 7 a person's elimination 0.1 s before a bot's muster counts, every event in time order; 8 both MIT notices in the script's banner, the font's copyright lines and every licence file in the kit |
 
-Build: `node portkit/tools/build.ts --game . --out <scratch>` writes `pk-hidden-role.js` (418,150 bytes). `npm run
-build` targets `../Assets/WebRoot` (the Unity project, not created yet).
+Build: `npm run build` writes `../Assets/WebRoot/pk-hidden-role.js` (487,538 bytes, portkit 812f285); its banner holds
+the game's MIT notice in full (`ts/script-header.txt`), then portkit's.
 
 Golden vectors: `npm run golden` runs `golden/extract.ts` (copies 31 rule members out of the upstream files, unchanged,
 into `golden/gen/`, not checked in, since it is upstream code with upstream names) and the dotnet harness
@@ -412,6 +413,11 @@ Portkit copy: `ts/portkit/` and `Packages/com.altspacegames.portkit/` mirror por
   (`localPosition()`, a throwaway head attachment): unverified in the app.
 - Name tags may show through walls and the blackout shell (not determined; behind `SetSettings`).
 - Title and slug: choose one of section 2 and check it before registering.
+- The fix pass's numbers against the app (unverified): that no voice carries past 50 m with the default
+  `VoiceDistanceMultiplier` (the keep-out's radius, D13); that beats reach the referee within `INPUT_DELAY` (0.5 s) in
+  a real room (later ones are applied at the clock's time, D19); that a VR teleport hop of the default 8 m and a run
+  of 4.55 m/s are what the app allows (the referee's allowance, D12), and that a head leaning over a desk in VR is
+  followed well enough by the projection onto open floor.
 
 ### Open questions
 
@@ -527,7 +533,8 @@ casing, hatch); no outside art is used, so there was nothing to download or repl
 
 - Materials: 27, all URP Unlit (the look does not depend on the host world's lights, and no light is paid per
   object on a Quest), with URP's own keyword setup run on each. Textures: 6 of 128-256 px (ASTC 6x6 on Android) and
-  the font atlas. Bundles: Android 1,100 KiB, Windows 1,141 KiB.
+  the font atlas. Bundles: Android 1,112 KiB, Windows 1,154 KiB (fix pass; 1,100 and 1,141 KiB before it: portkit's
+  larger relay graph and the licence texts).
 - Geometry: the shell is merged into one mesh per region and material (5,868 triangles in all, 144 renderers);
   11,200 mesh triangles in the whole kit without text. Static batching does not happen for kit objects instantiated
   at run time, so the merging is done by the builder.

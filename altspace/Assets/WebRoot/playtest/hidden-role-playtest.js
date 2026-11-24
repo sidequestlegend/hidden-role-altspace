@@ -312,7 +312,7 @@
           if (done) {
             await until(() => m().cd > cdBefore, 4000);
             await sleep(600);
-            const fill = await probe("scale", "Hub/Board/JobBar/Fill");
+            const fill = await probe("scale", path("hubBoard") + "/JobBar/Fill");
             const want = m().cd / m().ct;
             check(Math.abs(num(fill)[0] - want) < 0.02, "the jobs-done bar shows the station's progress (hub board, read in Unity)", `jobs ${m().cd}/${m().ct}, fill ${fill}`);
             const pfill = await probe("scale", "Personal/Panel/JobBar/Fill");
@@ -407,6 +407,8 @@
   async function nextMatch() {
     if (m().st !== ST.Lobby) {
       const below = (await where()).feet[1] < -60;
+      // the hub board's region is drawn (and clickable) only near it: walk there first
+      if (!below && m().st !== ST.Muster) await walkTo(0, 9.2, 0.3, "to the hub board to stop the match");
       await clickKey(below ? "loungeAbortButton" : "abortButton", below ? "Stop match (lounge board)" : "Stop match");
       await until(() => m().st === ST.Lobby, 10000);
     }
@@ -480,6 +482,31 @@
   };
   const hear = (kind) => until(() => heard.find((h) => h.kind === kind), 120000, 250);
 
+  /** The digest once it has held still for a second and a half (the pages are in the lobby), and each synced leaf's own. */
+  async function stableDigest() {
+    let last = dbg().digest();
+    for (let i = 0; i < 40; i++) {
+      await sleep(1500);
+      const now = dbg().digest();
+      if (now === last) break;
+      last = now;
+    }
+    const state = dbg().state();
+    const parts = {};
+    for (const k of Object.keys(state).sort()) parts[k] = JSON.stringify(state[k]);
+    return { digest: last, parts };
+  }
+  const differs = (a, b) =>
+    Object.keys(Object.assign({}, a, b))
+      .filter((k) => a[k] !== b[k])
+      .map((k) => {
+        const x = a[k] || "", y = b[k] || "";
+        let i = 0;
+        while (i < x.length && x[i] === y[i]) i++;
+        return `${k} (${x.length} / ${y.length} chars) from ${i}: ${x.slice(Math.max(0, i - 30), i + 50)} | ${y.slice(Math.max(0, i - 30), i + 50)}`;
+      })
+      .join("; ");
+
   async function multi() {
     if (!(await waitStarted())) return;
     const send = channel();
@@ -501,12 +528,18 @@
       dbg().force([bUid]);
       await startMatch("a match starts with both players and three bots");
     } else {
+      // whichever page is the referee deals: both name B (this page) for the hidden role
+      dbg().force([me.uid]);
       send({ kind: "joined", uid: me.uid });
       await until(() => m().st === ST.Playing, 60000, 250);
     }
     await until(() => dbg().mine() && dbg().mine().n === m().r, 10000);
     const role = dbg().role();
-    const panel = await probe("text", path("panelText"));
+    let panel = "";
+    for (let i = 0; i < 20 && panel.indexOf("You are a") < 0; i++) {
+      panel = await probe("text", path("panelText"));
+      if (panel.indexOf("You are a") < 0) await sleep(250);
+    }
     const pub = m().ro;
     check(role === (lead ? 1 : 2) && pub.length === 0 && panel.indexOf("You are a " + (lead ? "TECHNICIAN" : "SABOTEUR")) >= 0,
       "each player sees only their own role (sealed entry; no role in the public record)", `${ROLE[role]}, public roles ${JSON.stringify(pub)}, panel '${panel.split("\n")[0]}'`);
@@ -532,30 +565,50 @@
     await until(() => m().vo[slot] === 1, 5000);
     await until(() => m().st !== ST.Muster, 40000);
     await sleep(1500);
-    send({ kind: "digest", at: "after the muster", digest: dbg().digest() });
+    // a running match changes every quarter second (bots walk), so the pages compare digests in the lobby
+    if (lead) {
+      if (m().st !== ST.Lobby) {
+        const below = (await where()).feet[1] < -60;
+        if (!below) await walkTo(0, 9.2, 0.3, "to the hub board to stop the match");
+        await clickKey(below ? "loungeAbortButton" : "abortButton", "Stop match");
+      }
+    }
+    await until(() => m().st === ST.Lobby, 30000, 250);
+    const own1 = await stableDigest();
+    send({ kind: "digest", at: "lobby 1", digest: own1.digest, parts: own1.parts });
     const dig = await hear("digest");
-    check(!!dig && dig.digest === dbg().digest(), "both pages hold the same state after the muster (digest)", dig ? `${dig.digest} / ${dbg().digest()}` : "nothing heard");
+    const now1 = await stableDigest();
+    check(!!dig && dig.digest === now1.digest, "both pages hold the same state after the match (digest, in the lobby)", dig ? `${dig.digest} / ${now1.digest} ${dig.digest === now1.digest ? "" : differs(dig.parts, now1.parts)}` : "nothing heard");
 
     // a second match without B, who reloads its page while it runs: a late joiner
     if (lead) {
-      if (m().st !== ST.Lobby) {
-        await clickKey("abortButton", "Stop match");
-        await until(() => m().st === ST.Lobby, 10000);
-      }
       await walkTo(0, 9.2, 0.3, "back to the hub board");
       await until(() => heard.find((h) => h.kind === "left"), 60000, 250);
+      // B's leaving reaches this page through B's own state: wait until the lobby here no longer lists B
+      const bUid2 = heard.find((h) => h.kind === "joined").uid;
+      const gone = await until(() => !dbg().lobby().includes(bUid2), 20000, 250);
+      if (!gone) say("INFO", "B still in this page's lobby after 20 s: " + JSON.stringify(dbg().lobby()));
       dbg().force(null);
       await startMatch("A starts a second match without B");
       send({ kind: "started2", r: m().r });
       const backMsg = await hear("back");
       check(!!backMsg && backMsg.lounge, "B, back after a reload, is an observer in the lounge", backMsg ? JSON.stringify(backMsg) : "nothing heard");
-      check(!!backMsg && backMsg.digest === dbg().digest(), "B's reloaded page holds the same state as A's (digest)", backMsg ? `${backMsg.digest} / ${dbg().digest()}` : "");
-      await clickKey("abortButton", "Stop match");
-    } else {
+      check(!!backMsg && backMsg.r === m().r && backMsg.t0 === m().t0 && backMsg.roster === m().sl.map((x) => x.n).join(","), "B's reloaded page sees the same match (number, start, roster)", backMsg ? `${backMsg.r} ${backMsg.roster}` : "");
+      const below = (await where()).feet[1] < -60;
+      if (!below) await walkTo(0, 9.2, 0.3, "to the hub board to stop the match");
+      await clickKey(below ? "loungeAbortButton" : "abortButton", "Stop match");
       await until(() => m().st === ST.Lobby, 30000, 250);
+      const d2 = await hear("digest2");
+      const own2 = await stableDigest();
+      check(!!d2 && d2.digest === own2.digest, "B's reloaded page and A's hold the same state in the lobby (digest)", d2 ? `${d2.digest} / ${own2.digest} ${d2.digest === own2.digest ? "" : differs(d2.parts, own2.parts)}` : "nothing heard");
+      send({ kind: "digest2", digest: own2.digest, parts: own2.parts });
+    } else {
       await walkTo(0, 9.2, 0.3, "back to the hub board");
-      if (dbg().joined()) await clickKey("joinButton", "Join (leave the lobby)");
-      await until(() => !dbg().joined(), 6000);
+      for (let i = 0; i < 3 && dbg().joined(); i++) {
+        await clickKey("joinButton", "Join (leave the lobby)");
+        if (!(await until(() => !dbg().joined(), 4000))) say("INFO", `the click did not leave the lobby (try ${i + 1}); state ${m().st}, slot ${dbg().slot()}`);
+      }
+      check(!dbg().joined(), "B leaves the lobby with the Join button", "joined " + dbg().joined());
       send({ kind: "left" });
       await hear("started2");
       await sleep(2000);
@@ -579,6 +632,8 @@
     }
     const inMatch = await until(() => m().st === ST.Playing, 30000, 250);
     check(!!inMatch && dbg().slot() < 0, "the reloaded page finds the match running and is not on its roster", `state ${m().st}, slot ${dbg().slot()}`);
+    // a page reload does not move the body: the test puts it at the world's spawn (in the Commons), as an arrival is
+    say("INFO", "arrives at the world's spawn: " + (await cmd("place 0 0.05 0")));
     const lounge = await until(() => dbg().moves().some((v) => v.why === "lounge"), 20000, 250);
     await sleep(1500);
     const w = await where();
@@ -586,9 +641,16 @@
     const loungeText = await probe("text", path("loungeText"));
     check(!!lounge && w.feet[1] < -60, "a late joiner is sent to the observer lounge, 70 m down", w.text);
     check(panel.indexOf("Observing") === 0 && loungeText.indexOf("Observer lounge") === 0, "the late joiner's panel and the lounge board say so", `${panel.split("\n")[0]} / ${loungeText.split("\n")[1] || ""}`);
-    await sleep(1000);
-    send({ kind: "back", lounge: !!lounge && w.feet[1] < -60, digest: dbg().digest() });
-    await sleep(3000);
+    check(dbg().mine() === null || dbg().mine().n !== m().r, "the late joiner holds no sealed entry of the match", JSON.stringify(dbg().mine()));
+    send({ kind: "back", lounge: !!lounge && w.feet[1] < -60, r: m().r, t0: m().t0, roster: m().sl.map((x) => x.n).join(",") });
+    await until(() => m().st === ST.Lobby, 60000, 250);
+    const own = await stableDigest();
+    send({ kind: "digest2", digest: own.digest, parts: own.parts });
+    const a = await hear("digest2");
+    check(!!a && a.digest === own.digest, "and in the lobby the reloaded page's digest is A's", a ? `${a.digest} / ${own.digest} ${a.digest === own.digest ? "" : differs(a.parts, own.parts)}` : "nothing heard");
+    const hub = dbg().moves().filter((v) => v.why === "hub").pop();
+    const w2 = await where();
+    check(!!hub && w2.feet[1] > -1, "when the match ends the observer comes back up to the hub", w2.text + " moves " + JSON.stringify(dbg().moves()) + " applied " + JSON.stringify(dbg().applied()));
   }
 
   window.__hrRun = async function (plan) {

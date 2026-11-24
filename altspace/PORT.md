@@ -7,10 +7,11 @@ and look are this port's own. Nothing from the commercial game the upstream imit
 terms, task or sabotage names, room names, map layout, look or sounds.
 
 Written 2026-11-24. Upstream commit `4c8d3e1`. Nothing upstream was opened in Unity; the TypeScript rules run and are
-tested in Node on portkit's fake room (rung 1). The Unity kit (rung 2 onward) is not built yet.
+tested in Node on portkit's fake room (rung 1). The Unity kit was built the same day (section 11): the station is
+generated from the map data, nothing upstream is imported, and rungs 2 to 4 pass in the editor (`TESTS.md`).
 
 Contents: 1 Status, 2 Names and terms, 3 Decisions and deliberate differences, 4 Feature checklist, 5 How it works,
-6 Map data, 7 Tests, 8 Gaps and open questions, 9 Files, 10 Licences.
+6 Map data, 7 Tests, 8 Gaps and open questions, 9 Files, 10 Licences, 11 The kit (Unity).
 
 ---
 
@@ -23,11 +24,12 @@ Contents: 1 Status, 2 Names and terms, 3 Decisions and deliberate differences, 4
 | Hidden information | Done: roles and jobs by sealed delivery; input as fixed-rate sealed beats; tested on contents, sizes and timing |
 | Referee | Done: `"declared"` candidates (lobby players only); any referee change voids a running match |
 | Bots | Done: upstream's bots translated, an option (`bots` setting) |
-| Tests | `npm test`: typecheck, lint, **40 tests, 40 pass** (6.4 s): 9 golden-vector suites against the upstream C# (dotnet 8), 12 rules tests, 16 fake-room scenarios, 3 secrecy tests |
-| Build | `pk-hidden-role.js`, 418 KB, built to a scratch folder |
-| `bindings.json` | **Provisional**, hand-written (78 objects, 57 refs, 19 click events); the kit builder will replace it |
-| Unity kit, bundles, relay graph, Play mode (rungs 2 to 4) | Not started |
-| Checklist (section 4, 82 items) | **57 Done, 21 Changed (deliberately), 3 Partial (display waits for the kit), 1 Left out** |
+| Tests | `npm test`: typecheck, lint, **42 tests, 42 pass**: 9 golden-vector suites against the upstream C# (dotnet 8), 12 rules tests, 16 fake-room scenarios, 3 secrecy tests, 2 kit tests (console clicks per job kind, the bars, the post, a body marker, Leave, the boarding pad, the drawn regions) |
+| Build | `npm run build`: `Assets/WebRoot/pk-hidden-role.js`, 454 KB |
+| `bindings.json` | Written by the kit builder (124 objects, 62 refs, 51 behaviours, 24 events) |
+| Unity kit (section 11) | Built: `Assets/Kit/hidden-role.prefab` by `Assets/Kit/Editor/HiddenRoleKitBuilder.cs`; bundles Android 1,100 KiB, Windows 1,141 KiB, both PASS the app's kit check |
+| Rungs (`TESTS.md`) | 0 and 1 pass; 2 passes (and the collider check against the rules' walkable test); 3 passes (one person and five bots, 25 of 25); 4 passes (two players and three bots, 33 of 33, twice in a row); `dist/` exported |
+| Checklist (section 4, 82 items) | **60 Done, 21 Changed (deliberately), 0 Partial, 1 Left out** |
 
 ## 2. Names and terms
 
@@ -118,7 +120,7 @@ X = secrecy).
 | F1 | Named rooms: host, join or auto | Left out | The world instance is the room (X5) |
 | F2 | At most 10 players | Done | `max-players` 2-10; R settings |
 | F3 | Player objects, numbers, colours, lobby spawn points | Changed | Roster slots by join order; platform names; hub spawn points used when returning (D9) |
-| F4 | Everyone walks the map in the lobby | Done | No lock in the lobby (kit geometry pending) |
+| F4 | Everyone walks the map in the lobby | Done | No lock in the lobby; the station is walkable in the lobby (boarding pad outside, Leave on the hub board) |
 | F5 | Only the host may start; 4 participants incl. bots | Changed | Any lobby player starts; 4 incl. bots (D9, D10); S all |
 | F6 | Host restarts any time | Changed | Starter or owner stops; automatic return after the result (D7, D9); S stop |
 | F7 | Host is the hidden role by default | Changed | D5; R start |
@@ -149,9 +151,9 @@ X = secrecy).
 | F32 | New-job alert for 6 s with a tone | Done | `RuntimeHud.OnSecret` (local only); not covered by a test |
 | F33 | Comms sabotage blocks jobs | Done | Sonar jam; S faults |
 | F34 | Hidden role's fake tasks | Done | Cover jobs, never counted |
-| F35 | Job list nearest first, 7 rows; pointer hidden in a fault | Partial | List with compass and distance on the personal panel; no 3D pointer arrow until the kit exists |
-| F36 | Own stations marked; gold in range; hidden role's purple | Partial | Console colours sent (`setColor`); kit objects not built |
-| F37 | Progress bar while working | Partial | Panel hint only ("Holding..."); console bar/lamps/needle wait for the kit |
+| F35 | Job list nearest first, 7 rows; pointer hidden in a fault | Done | List with compass and distance on the personal panel (a compass word, not a 3D arrow); each console has its job's name and kind over it |
+| F36 | Own stations marked; gold in range; hidden role's purple | Done | The console screens take the colours (relay op `color`, read back in Unity by the Play-mode test) |
+| F37 | Progress bar while working | Done | The personal panel's work bar (hold time, taps, the timing sweep with its band, a reset's hold); the jobs-done bar on the hub board and the panel; rung 3 |
 | F38 | Elimination: living hidden role, 10 s cooldown, ready at start | Done | G cooldown; R elimination |
 | F39 | Nearest living crew within 1.45, clear line | Done | R elimination (range edge, wall) |
 | F40 | Victim down where they stand; flash | Changed | Body marker stays; victim to the lounge; no flash (D13) |
@@ -198,7 +200,7 @@ X = secrecy).
 | F81 | Hidden-role bot routine | Done | Translated; S bots |
 | F82 | Bot voting | Done | Translated; S bots |
 
-Counts: Done 57, Changed 21, Partial 3, Left out 1 (82).
+Counts: Done 60, Changed 21, Partial 0, Left out 1 (82).
 
 ## 5. How it works
 
@@ -380,14 +382,18 @@ upstream checkout). `vectors/upstream.json` is checked in, so the tests run with
 
 Portkit copy: `ts/portkit/` mirrors portkit commit `1118ef0` (re-synced at the end of this job, `robocopy /MIR`).
 
-### Not done in this job (needs Unity, or a person)
+### Still unverified (needs the app, a headset, or a person)
 
-- The kit: station geometry from `station-map.json` (floors, walls, ceiling, props, consoles, panels, hatches, muster
-  post, ring marks, lounge), boards, personal panel, markers, shell, the two generated tones; the relay graph;
-  bundles; `bindings.json` from the kit builder (the current one is provisional); Play-mode tests (rungs 2-4).
-- In-world bot bodies are markers only (`Station/Bots/Bot0..8`); how they look is the kit's.
-- VR controller mapping and the desktop keys are untested in the app (Q and E may clash with grapple when a world
-  enables it); the panel buttons are the guaranteed path.
+- Everything in the Altspace app and on a Quest (rung 5): frame time and draw calls on the device, the region
+  switching's cost and pop-in, Unlit materials under the app's own pipeline settings, the size of the boards' text in
+  a headset, real avatars' size against 1.1 m corridors, VR teleport against the roof and walls.
+- VR controller mapping and the desktop keys (Q and E may clash with grapple when a world enables it); the panel
+  buttons and the clickable consoles, post, markers and panels are the guaranteed path (clicks through Play mode's
+  desktop pointer only).
+- Walking: Play mode's desktop player is a fly camera with no body, so the test walks a body-sized capsule against the
+  kit's colliders (section 11); a real avatar's collider in the app may differ in radius (0.25 m assumed).
+- The page learns the player's position only from pose updates: a person who has not moved since the page loaded is
+  at no known position until they do (the HUD then uses the start point); seen in Play mode.
 - Name tags may show through walls and the blackout shell (not determined; behind `SetSettings`).
 - Title and slug: choose one of section 2 and check it before registering.
 
@@ -414,6 +420,14 @@ altspace/
     vectors/upstream.json golden vectors
     tools/convert-map.ts  upstream map -> station-map.json (renames by index)
     portkit/              copy of the shared kit (portkit commit 1118ef0)
+    tools/walkable-grid.ts the rules' walkable test over the station -> vectors/walkable-grid.json (the collider check)
+    tools/sightlines.ts   which regions of the station can be seen from which -> src/region-pvs.json
+    test/kit.test.ts      the kit's clickable objects and bars on the fake room
+  Assets/Kit/Editor/      HiddenRoleKitBuilder.cs, StationGeometry.cs, KitArt.cs, HiddenRoleTools.cs, bindings.lock.json
+  Assets/Kit/             hidden-role.prefab (built), Art/ (generated materials, textures, meshes, tones), Graphs/ (relay)
+  Assets/WebRoot/         pk-hidden-role.js (built), playtest/hidden-role-playtest.js (rungs 3 and 4)
+  playtest/               single.json, multi.json, evidence
+  TESTS.md, THIRD-PARTY-NOTICES.md
 ```
 
 ## 10. Licences
@@ -424,3 +438,97 @@ altspace/
 - Not used and never copied: the upstream's character art (a commercial licence that forbids redistribution), its
   2D tile pack (no licence found), the Photon Fusion SDK, its fonts and room art. The two upstream sounds are
   generated in code; the kit will generate its own tones from its own formulas.
+
+## 11. The kit (Unity)
+
+Unity project in this folder (`altspace/`, from portkit's template: Unity 6000.3.21f1, Creator SDK 4.0.29, Play-mode
+page port 44000). **Nothing from the upstream repository is imported**: its art, tile packs, fonts, sounds and the
+Photon SDK are all excluded (section 10), so portkit's importer is not used and there is no `Assets/Upstream/`. The kit
+is generated from `ts/src/station-map.json` by `Assets/Kit/Editor/HiddenRoleKitBuilder.cs` (on portkit's `KitBuilder`),
+`StationGeometry.cs` (the shell) and `KitArt.cs` (materials, textures, meshes, tones). `PortKit/Kit/Build Prefabs`
+writes `Assets/Kit/hidden-role.prefab` and `ts/bindings.json`.
+
+### Scale and shape
+
+- 1 u = 1 m, as the rules (Q1). The open floor is exactly the rules' walkable area at radius 0: rooms and corridors
+  less the room-shape cut-outs, computed on a grid made of every rectangle edge (173 x 198 cells, no sampling).
+  Walls stand on its edge, inner face on the edge, thickness (up to 0.25 m) outward and never into another open area.
+- Floor to ceiling **3.2 m**; closed ceiling with light panels; a roof over it (solid, so nobody enters from above).
+- Corridors are as wide as the map draws them: 1.1 m for the narrow service runs (about twice a body's width), 4.1 m
+  for the main ones; openings are where corridors meet rooms (the map has no separate doorways). Props are solid boxes
+  of their exact rectangle, 0.95 to 3.2 m tall by kind.
+- Consoles (22), fault panels (4), hatches (9), the muster post and ring, boards and markers have **no solid
+  collider** (the rules do not block on them): click colliders on the UI layer only, which bodies pass through.
+- The observer lounge is a closed 12 x 8 m room 70 m below the station with its board (and Stop match, Leave).
+- The boarding pad stands outside the south wall at map (6, -55.4): "Enter the station" takes a person to a Commons
+  spawn point; "Leave the station" on the hub board (and in the lounge) takes them back out. The station takes over a
+  world (`single`), placed 5 cm up (`position="0 0.05 0"`) so its floor never fights a host's ground at 0.
+
+### Colliders against the rules (`HiddenRole/Check Walkable`)
+
+`ts/tools/walkable-grid.ts` writes the rules' own walkable test (`ShipMap.IsBlocked`, equal to upstream by golden
+vectors G1) at every 0.25 m of the play bounds (278,400 points): blocked, open, or open with a clear disc of 0.30 m.
+The Unity check instantiates the built prefab and, with a body capsule of radius 0.25 m from 0.3 to 1.7 m:
+
+```
+PASS nothing solid where the rules give a body room: 70654 of 70654 clear points free, 0 blocked
+PASS a body reaches nothing the rules call blocked: 70861 points reachable from the Commons, 0 of them blocked to the rules
+PASS everything the rules connect is reachable: 70654 of 70654 connected clear points reached
+```
+
+### What the player sees and uses
+
+| Object | Where | Use |
+|---|---|---|
+| Hub board | Commons, north side (0, 11.55) | Lobby and roster, shift clock, jobs-done bar, Join / leave lobby, Start match, Stop match, Leave the station, Credits |
+| Muster post and ring | (0, 0); ring radius 2.8 m | Click the post (or E) to call a muster; the ring marks where the living stand |
+| Muster board | Over the post at 1.7-3.0 m | Why and who, time left, who has voted; ten name buttons and Abstain; turns to face each viewer (its own copy) |
+| Consoles (22) | Each job point, facing the most open side | Screen in the player's colours (own job teal, nearest amber, in range gold, cover jobs plum); name and kind over it; a click works the job as the key does: hold (held, let go when done), tap (one press a click), timing (first click starts the sweep, second lets go) |
+| Fault panels (4) | Each panel point | A saboteur's click raises its fault; a technician's click holds the reset for 2 s |
+| Hatches (9) | Floor plates | V or the panel's Hatch button (saboteurs) |
+| Body markers (10) | Where someone was downed | Amber disc with a dark cross; a click raises the alarm (or R) |
+| Bot markers (9) | Moved by the page | A slim slate column with a lamp head and a hover ring, named "Bot n" (no likeness to any game's characters); a click eliminates (saboteurs) |
+| Personal panel | Floats 0.55 m in front of the head, tilted | Role, clock, jobs nearest first with compass and distance, hints; jobs-done bar, work bar (with the timing band); Use, Eliminate, Alarm, Fault, Hatch |
+| Blackout shell | Round the head | Black sphere seen from inside, radius 4.8 m (D14) |
+| Lounge board | Lounge | The match as an observer sees it; Stop match; Leave |
+| Credits | Hub board button | Licences and credits, for the viewer only |
+
+Text is TextMesh Pro with LiberationSans SDF (SIL OFL 1.1, from TextMesh Pro's essentials). The two tones (new job,
+shift over) are sine waves written by `KitArt.Tones`. Every texture is painted in code (floor plates, wall panels
+with a light strip, a long window onto the water in the Viewing Gallery and the lounge, ceiling panels, machinery
+casing, hatch); no outside art is used, so there was nothing to download or replace.
+
+### Performance
+
+- Materials: 27, all URP Unlit (the look does not depend on the host world's lights, and no light is paid per
+  object on a Quest), with URP's own keyword setup run on each. Textures: 6 of 128-256 px (ASTC 6x6 on Android) and
+  the font atlas. Bundles: Android 1,100 KiB, Windows 1,141 KiB.
+- Geometry: the shell is merged into one mesh per region and material (5,868 triangles in all, 144 renderers);
+  11,200 mesh triangles in the whole kit without text. Static batching does not happen for kit objects instantiated
+  at run time, so the merging is done by the builder.
+- **Occlusion by regions.** A kit cannot carry baked occlusion data, so the station is drawn a region at a time (6 x
+  5 over the play bounds, pieces split at the region lines): `ts/tools/sightlines.ts` casts rays over the open floor
+  (props below eye height do not block) every 0.5 m with 360 rays and writes, for each region, the regions visible
+  from it plus its neighbours (`src/region-pvs.json`, 12.6 of 30 on average); the HUD switches regions on and off as
+  the player moves (all of them outside the station, none from the lounge). The hub, muster post and board and the
+  boarding pad sit in their regions too.
+- Measured in Play mode (Game view statistics, the `stats` test command; `TESTS.md` has the runs): before the page
+  knows where the player is (everything drawn) 9,080 triangles and 178 batches; walking the station with region
+  switching (10 to 19 of 30 regions drawn) 4,700 to 12,000 triangles and 27 to 224 batches; SetPass calls 12 to 20.
+  Editor frame 3.9 to 8.4 ms (a PC, not a Quest). The batches are mostly the station's region pieces and the text
+  (95 TextMesh Pro objects, one batch each); on a Quest that is at the upper end of a comfortable budget, so the
+  first thing to cut if the headset says so is text (console labels shown only near the console) and the region size.
+- Colliders: 853 boxes (walls, roof pieces, props, one floor), all on the Default layer, none moving.
+
+### Kit gaps met (portkit)
+
+- Play mode's desktop player is a fly camera with no body: walking against colliders needs the game's own `walk`
+  test command (`HiddenRoleTools.cs`). Proposed for portkit: a `walk` command in `unity/Editor/Test/InputSim.cs`
+  (capsule move and slide, honouring `ActionsSystem.canMove`).
+- The SDK's desktop pointer acts on the object it last hovered when the mouse has not moved: "look" puts each target
+  at the screen centre, so a click can land on the previous object (seen: a Start click that pressed Stop again).
+  The test moves the mouse off and back. Proposed: `InputSim.Pointer` sends a move to a neighbouring pixel first.
+- `PortKit/Kit/Take Photos` frames every renderer of the kit, so a kit with a part far away (the lounge 70 m down)
+  gets a distant photo. Proposed: a `KitBuilder.PhotoBounds` override in `unity/Editor/Kit/KitArtifacts.cs`.
+- No position for the local player until a pose update arrives (Play mode sends none until the player moves).
+  Proposed: the runtime asks the scene for the local user's position once at start (`ts/src/platform/bs.ts`).

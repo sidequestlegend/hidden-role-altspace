@@ -41,6 +41,9 @@ function debugHooks(instance: GameInstance): Record<string, unknown> {
     joined: () => hud().Joined,
     work: () => hud().WorkAmount,
     regionsOn: () => hud().RegionsOn,
+    lobby: () => match().Lobby().map((p) => p.uid),
+    /** What the HUD last applied its effects for, and where the page thinks the head is (world). */
+    applied: () => ({ ...(hud() as unknown as { applied: Record<string, unknown> }).applied, head: hud().Input.Position }),
     events: (kind: string) => match().history.filter((e) => e.kind === kind).map((e) => ({ t: e.t, actor: e.actor, target: e.target, detail: e.detail })),
     moves: () => hud().moves.map((mv) => ({ why: mv.why, x: mv.at.x, y: mv.at.y })),
     here: () => {

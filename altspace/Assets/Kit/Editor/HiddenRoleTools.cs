@@ -11,6 +11,7 @@
 //                          that passes through walls, so this is the test's own walker; what it reports ("reached",
 //                          "blocked by ...") is what the kit's colliders allow. Answers when it arrives or is stopped.
 //   where                  the desktop player's feet and camera position
+//   place <x> <y> <z>      put the desktop player's feet there (an arrival at the world's spawn)
 //   stats                  the Game view's last frame: triangles, batches, SetPass calls (UnityStats)
 using System;
 using System.Collections;
@@ -38,6 +39,15 @@ namespace HiddenRole
         {
             KitPlayTest.Commands["walk"] = Walk;
             KitPlayTest.Commands["where"] = (a, reply) => { reply(Where()); return null; };
+            // place <x> <y> <z>: the desktop player's feet put at a world point (where an arrival appears: the world's spawn)
+            KitPlayTest.Commands["place"] = (a, reply) =>
+            {
+                var p = Player();
+                if (p == null) { reply("error: no desktop player"); return null; }
+                p.position = new Vector3(float.Parse(a[0], CultureInfo.InvariantCulture), float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture));
+                reply("ok " + Where());
+                return null;
+            };
             KitPlayTest.Commands["stats"] = (a, reply) => { reply(Stats()); return null; };
         }
 

@@ -112,16 +112,16 @@ namespace HiddenRole
             hud = stage.Behaviour(panel, "RuntimeHud", hudFields);
             PersonalPanel(personal, panel);
 
-            var hubBoard = HubBoard(stage.Create("Hub", root).transform);
+            var hubBoard = HubBoard(stage.Create("Hub", RegionRoot(0, 11.55)).transform);
             stage.Object(hubBoard, key: "hubBoard");
             stage.Behaviour(hubBoard, "Match");
             stage.Behaviour(hubBoard, "Dealer");
             stage.Behaviour(hubBoard, "PlayerLink");
             HubButtons(hubBoard.transform);
 
-            Muster(stage.Create("Muster", root).transform);
+            Muster(stage.Create("Muster", RegionRoot(0, 0)).transform);
             Lounge(stage.Create("Lounge", root).transform);
-            Entry(stage.Create("Entry", root).transform);
+            Entry(stage.Create("Entry", RegionRoot(EntrySign.x, EntrySign.y)).transform);
             Speaker(stage.Create("Audio", root).transform, tones);
             Markers(station.transform);
             Consoles(station.transform);

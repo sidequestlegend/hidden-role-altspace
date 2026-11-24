@@ -4,16 +4,20 @@ A hidden-role game for Altspace snippets. Technicians keep an undersea research 
 of jobs; a hidden saboteur among them eliminates, raises faults and slips through service hatches. When someone is
 found down, or the muster post is pressed, everyone living gathers in a ring to talk and vote someone out.
 
-This repository holds only the port: the game's rules in TypeScript on the shared `portkit` runtime, its tests, and
-its design notes. The title is not final; see `altspace/PORT.md`, "Names and terms" (working snippet slug
+This repository holds only the port: the game's rules in TypeScript on the shared `portkit` runtime, its tests, its
+design notes, and the Unity project that generates the station kit (the 3D station, boards and markers) from the map
+data. The title is not final; see `altspace/PORT.md`, "Names and terms" (working snippet slug
 `hidden-role`).
 
 ## Layout
 
 ```
-altspace/PORT.md             design, decisions, deliberate differences, feature checklist, map data, tests, gaps
-altspace/ts/                 the game (src/), tests (test/), golden vectors (golden/, vectors/), map tool (tools/)
+altspace/PORT.md             design, decisions, deliberate differences, feature checklist, map data, tests, gaps, the kit
+altspace/TESTS.md            test evidence, rung by rung
+altspace/ts/                 the game (src/), tests (test/), golden vectors (golden/, vectors/), tools (tools/)
 altspace/ts/portkit/         copy of the shared portkit runtime (MIT)
+altspace/Assets/Kit/         the kit builder (Editor/), the built kit and its generated art
+altspace/Packages/com.altspacegames.portkit/   copy of portkit's Unity package (MIT)
 ```
 
 ## Running
@@ -23,7 +27,7 @@ Node 22.18 or later.
 ```
 cd altspace/ts
 npm install
-npm test                     typecheck, lint, 40 tests on a fake room (no Unity)
+npm test                     typecheck, lint, 42 tests on a fake room (no Unity)
 node portkit/tools/build.ts --game . --out <folder>      the snippet script, pk-hidden-role.js
 ```
 
@@ -32,8 +36,9 @@ repository (below); they are not needed to run the tests, which use the checked-
 `src/station-map.json`. Point them at the checkout with `node golden/extract.ts <checkout>` and
 `dotnet run --project golden -c Release -p:Upstream=<checkout> -- vectors/upstream.json src/station-map.json`.
 
-The Unity kit (the station's 3D build, boards and markers) is not part of this repository yet; `bindings.json` is
-provisional.
+The Unity project is `altspace/` (Unity 6000.3.21f1, SideQuest Creator SDK 4.0.29): `PortKit/Kit/Build Prefabs`
+generates the station from `ts/src/station-map.json` and writes `ts/bindings.json`; `altspace/TESTS.md` says how
+each test rung is run.
 
 ## Credits
 

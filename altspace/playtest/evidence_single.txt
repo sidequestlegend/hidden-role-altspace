@@ -1,0 +1,221 @@
+local: script and bundles from the test server http://localhost:44100
+[main] INFO main in Play, page port 44000
+[main] PASS the kit loads from a hand-written bs-snippet and the instance starts:
+[main] CMD h1 probe pk1:hidden-role:0 exists .
+[main] REPLY h1 True
+[main] CMD h2 probe pk1:hidden-role:0 text Station/Regions/R15/Hub/Board/Text
+[main] REPLY h2 HIDDEN ROLE  -  station shift
+[main] 0 of 10 + 5 bot(s) (need 4)
+[main] oin to play.
+[main] PASS the hub board's text reached Unity (relay op text): HIDDEN ROLE  -  station shift / Lobby: 0 of 10 + 5 bot(s) (need 4)
+[main] CMD h3 stats
+[main] REPLY h3 triangles 9080 vertices 18172 batches 178 drawcalls 178 setpass 18 shadowcasters 4 frame 4.8ms render 2.5ms
+[main] INFO frame stats at the spawn, before walking (regions drawn 30 of 30): triangles 9080 vertices 18172 batches 178 drawcalls 178 setpass 18 shadowcasters 4 frame 4.8ms render 2.5ms
+[main] CMD h4 shot commons -6 1.75 -3 0 1.45 12 75
+[main] REPLY h4 Library/PortKit/shots/hidden-role-single_commons.jpg
+[main] INFO shot commons: Library/PortKit/shots/hidden-role-single_commons.jpg
+[main] CMD h5 where
+[main] REPLY h5 0.00 0.00 0.00 camera 0.00 1.60 0.00
+[main] CMD h6 walk 0.000 15.020 3.5
+[main] REPLY h6 ok reached 0.00 14.91
+[main] CMD h7 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Join
+[main] REPLY h7 1.150 2.580 17.545
+[main] CMD h8 look 1.150 2.580 17.545
+[main] REPLY h8 ok camera at 0.00,1.60,14.91
+[main] CMD h9 pointer 1.15 2.33 17.545
+[main] REPLY h9 ok screen 585,441 of 1169x1024
+[main] CMD h10 wait 3
+[main] REPLY h10 ok
+[main] CMD h11 pointer 1.150 2.580 17.545
+[main] REPLY h11 ok screen 585,512 of 1169x1024
+[main] CMD h12 click 1.150 2.580 17.545
+[main] REPLY h12 ok screen 585,512 of 1169x1024
+[main] INFO click Join: ok screen 585,512 of 1169x1024 at 1.150 2.580 17.545
+[main] PASS Join on the hub board puts the player in the lobby (click through the SDK's desktop player): joined true
+[main] PASS the one lobby player is elected referee (declared candidates): referee {"sid":"rsess_dda830f4-1443-4d7a-9408-ee68829590a1","uid":"ea71beabbcdd9d67f76671884c9073a7","term":22,"e":17}
+[main] CMD h13 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
+[main] REPLY h13 1.150 2.260 17.545
+[main] CMD h14 look 1.150 2.260 17.545
+[main] REPLY h14 ok camera at 0.00,1.60,14.91
+[main] CMD h15 pointer 1.15 2.01 17.545
+[main] REPLY h15 ok screen 584,437 of 1169x1024
+[main] CMD h16 wait 3
+[main] REPLY h16 ok
+[main] CMD h17 pointer 1.150 2.260 17.545
+[main] REPLY h17 ok screen 584,512 of 1169x1024
+[main] CMD h18 click 1.150 2.260 17.545
+[main] REPLY h18 ok screen 584,512 of 1169x1024
+[main] INFO click Start: ok screen 584,512 of 1169x1024 at 1.150 2.260 17.545
+[main] PASS a match starts with five bots (match 1): state 1, roster Main Editor, Bot 1*, Bot 2*, Bot 3*, Bot 4*, Bot 5*
+[main] PASS the roster is the person and five bots: Main Editor, Bot 1, Bot 2, Bot 3, Bot 4, Bot 5
+[main] PASS the person's own role arrives sealed: technician: role technician, public roles []
+[main] CMD h19 where
+[main] REPLY h19 -1.45 0.05 -42.37 camera -1.45 1.65 -42.37
+[main] PASS the person is taken to their start point: start -1.45,-48.37, Unity feet -1.45 0.05 -42.37 camera -1.45 1.65 -42.37
+[main] CMD h20 probe pk1:hidden-role:0 active Station/Bots/Bot0
+[main] REPLY h20 True
+[main] CMD h21 probe pk1:hidden-role:0 pos Station/Bots/Bot0
+[main] REPLY h21 -23.150 1.000 -18.060
+[main] CMD h22 probe pk1:hidden-role:0 pos Station/Bots/Bot0
+[main] REPLY h22 -21.130 1.000 -16.610
+[main] PASS bot markers stand in the station and move: -23.150 1.000 -18.060 -> -21.130 1.000 -16.610
+[main] CMD h23 probe pk1:hidden-role:0 text Personal/Panel/Text
+[main] REPLY h23 You are a TECHNICIAN
+[main] lock: 898s
+[main]  left):
+[main] ute feeder B (Tap) - Battery Bay 11 m
+[main] e the bilge line (Tap) - Pump Hall 64 m
+[main] k the impeller housing (Hold) - Pump Hall 66 m
+[main] d the chamber gauge (Hold) - Decompression Bay 76 m
+[main] the surface packet (Hold) - Sonar Room 90 m
+[main] tery Bay
+[main] PASS the personal panel shows the person's role and jobs: You are a TECHNICIAN / Shift clock: 898s / Jobs (5 left):
+[main] INFO nearest job: 15 Re-route feeder B (tap), route 12.7 m
+[main] CMD h24 walk -1.500 -33.500 3.5
+[main] REPLY h24 ok reached -1.50 -33.61
+[main] CMD h25 walk -0.500 -32.500 3.5
+[main] REPLY h25 ok reached -0.57 -32.58
+[main] CMD h26 walk 1.590 -32.093 3.5
+[main] REPLY h26 ok reached 1.48 -32.12
+[main] CMD h27 stats
+[main] REPLY h27 triangles 11993 vertices 20154 batches 179 drawcalls 179 setpass 19 shadowcasters 3 frame 4.8ms render 2.5ms
+[main] INFO frame stats on the way, at console 15 (regions drawn 15 of 30): triangles 11993 vertices 20154 batches 179 drawcalls 179 setpass 19 shadowcasters 3 frame 4.8ms render 2.5ms
+[main] PASS the person walks to a job console through the station (capsule against the kit's colliders): 3 legs in 5.2 s,
+[main] CMD h28 probe pk1:hidden-role:0 pos Station/Regions/R03/Console15
+[main] REPLY h28 1.910 1.130 -32.000
+[main] CMD h29 look 1.910 1.130 -32.000
+[main] REPLY h29 ok camera at 1.48,1.65,-32.12
+[main] CMD h30 pointer 1.91 0.8799999999999999 -32
+[main] REPLY h30 ok screen 585,347 of 1169x1024
+[main] CMD h31 wait 3
+[main] REPLY h31 ok
+[main] CMD h32 pointer 1.910 1.130 -32.000
+[main] REPLY h32 ok screen 585,512 of 1169x1024
+[main] CMD h33 probe pk1:hidden-role:0 pos Station/Regions/R03/Console15
+[main] REPLY h33 1.910 1.130 -32.000
+[main] CMD h34 click 1.910 1.130 -32.000
+[main] REPLY h34 ok screen 585,512 of 1169x1024
+[main] CMD h35 click 1.910 1.130 -32.000
+[main] REPLY h35 ok screen 585,512 of 1169x1024
+[main] CMD h36 click 1.910 1.130 -32.000
+[main] REPLY h36 ok screen 585,512 of 1169x1024
+[main] CMD h37 click 1.910 1.130 -32.000
+[main] REPLY h37 ok screen 585,512 of 1169x1024
+[main] INFO console 15 (tap) attempt 1: done true, work bar peaked at 1
+[main] PASS the work bar on the personal panel moves while the job is worked: peak 1
+[main] PASS a job is completed by clicking its console: job 15 (tap)
+[main] CMD h38 probe pk1:hidden-role:0 scale Station/Regions/R15/Hub/Board/JobBar/Fill
+[main] REPLY h38 0.080 1.000 1.000
+[main] PASS the jobs-done bar shows the station's progress (hub board, read in Unity): jobs 2/25, fill 0.080 1.000 1.000
+[main] CMD h39 probe pk1:hidden-role:0 scale Personal/Panel/JobBar/Fill
+[main] REPLY h39 0.080 1.000 1.000
+[main] PASS the personal panel's jobs bar shows it too: 0.080 1.000 1.000
+[main] CMD h40 shot console 2 1.75 -34.5 2 1.1500000000000001 -32 70
+[main] REPLY h40 Library/PortKit/shots/hidden-role-single_console.jpg
+[main] INFO shot console: Library/PortKit/shots/hidden-role-single_console.jpg
+[main] INFO Bot 3 is down at 32.81,33.76
+[main] CMD h41 walk 5.500 -30.500 3.5
+[main] REPLY h41 ok reached 5.40 -30.55
+[main] CMD h42 walk 7.500 -15.500 3.5
+[main] REPLY h42 ok reached 7.49 -15.60
+[main] CMD h43 walk 7.500 -6.500 3.5
+[main] REPLY h43 ok reached 7.50 -6.62
+[main] CMD h44 walk 8.500 -5.500 3.5
+[main] REPLY h44 ok reached 8.39 -5.55
+[main] CMD h45 walk 15.500 9.500 3.5
+[main] REPLY h45 ok reached 15.45 9.40
+[main] CMD h46 walk 18.500 12.500 3.5
+[main] REPLY h46 ok reached 18.41 12.42
+[main] CMD h47 walk 25.500 15.500 3.5
+[main] REPLY h47 ok reached 25.41 15.46
+[main] CMD h48 walk 30.500 16.500 3.5
+[main] REPLY h48 ok reached 30.38 16.48
+[main] CMD h49 walk 40.500 17.500 3.5
+[main] REPLY h49 ok reached 40.38 17.49
+[main] CMD h50 walk 41.500 18.500 3.5
+[main] REPLY h50 ok reached 41.45 18.40
+[main] CMD h51 walk 44.500 26.500 3.5
+[main] REPLY h51 ok reached 44.47 26.39
+[main] CMD h52 walk 42.500 29.500 3.5
+[main] REPLY h52 ok reached 42.57 29.40
+[main] CMD h53 walk 41.500 31.500 3.5
+[main] REPLY h53 ok reached 41.55 31.40
+[main] CMD h54 walk 40.500 33.500 3.5
+[main] REPLY h54 ok reached 40.55 33.40
+[main] CMD h55 walk 39.500 34.500 3.5
+[main] REPLY h55 ok reached 39.60 34.45
+[main] CMD h56 walk 33.283 39.390 3.5
+[main] REPLY h56 ok reached 33.37 39.32
+[main] CMD h57 probe pk1:hidden-role:0 active Station/Bodies/Body3
+[main] REPLY h57 True
+[main] PASS the downed bot's marker lies where it fell: Station/Bodies/Body3 active True
+[main] CMD h58 probe pk1:hidden-role:0 pos Station/Bodies/Body3
+[main] REPLY h58 32.810 0.400 39.760
+[main] CMD h59 look 32.810 0.400 39.760
+[main] REPLY h59 ok camera at 33.37,1.65,39.32
+[main] CMD h60 pointer 32.81 0.15000000000000002 39.76
+[main] REPLY h60 ok screen 584,446 of 1169x1024
+[main] CMD h61 wait 3
+[main] REPLY h61 ok
+[main] CMD h62 pointer 32.810 0.400 39.760
+[main] REPLY h62 ok screen 584,512 of 1169x1024
+[main] CMD h63 click 32.810 0.400 39.760
+[main] REPLY h63 ok screen 584,512 of 1169x1024
+[main] INFO click the body marker (raise the alarm): ok screen 584,512 of 1169x1024 at 32.810 0.400 39.760
+[main] PASS raising the alarm at a downed bot calls a muster: walked true, state 2, body slot 3, marker Station/Bodies/Body3
+[main] CMD h64 where
+[main] REPLY h64 0.00 0.05 8.80 camera 0.00 1.65 8.80
+[main] PASS the muster gathers the living at the ring round the post: 2.80 m from the post, Unity feet 0.00 0.05 8.80 camera 0.00 1.65 8.80
+[main] CMD h65 walk 1.00 8.80 3
+[main] REPLY h65 blocked at 0.00 8.80, 1.00 m short (movement locked)
+[main] PASS players stand still in the ring (movement locked): blocked at 0.00 8.80, 1.00 m short (movement locked)
+[main] CMD h66 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
+[main] REPLY h66 ALARM: Main Editor found Bot 3 down.
+[main] 7s left
+[main] itor: ...
+[main] voted
+[main] voted
+[main] voted
+[main] PASS the muster board says why and who: ALARM: Main Editor found Bot 3 down. / Vote: 27s left
+[main] CMD h67 shot muster 0 1.75 8.8 0 2.25 6 70
+[main] REPLY h67 Library/PortKit/shots/hidden-role-single_muster.jpg
+[main] INFO shot muster: Library/PortKit/shots/hidden-role-single_muster.jpg
+[main] CMD h68 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Vote5/Label
+[main] REPLY h68 Bot 5
+[main] PASS the muster board's buttons name the living: button 5: 'Bot 5'
+[main] CMD h69 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Board/Vote5
+[main] REPLY h69 -0.980 2.480 6.005
+[main] CMD h70 look -0.980 2.480 6.005
+[main] REPLY h70 ok camera at 0.00,1.65,8.80
+[main] CMD h71 pointer -0.98 2.23 6.005
+[main] REPLY h71 ok screen 585,441 of 1169x1024
+[main] CMD h72 wait 3
+[main] REPLY h72 ok
+[main] CMD h73 pointer -0.980 2.480 6.005
+[main] REPLY h73 ok screen 585,512 of 1169x1024
+[main] CMD h74 click -0.980 2.480 6.005
+[main] REPLY h74 ok screen 585,512 of 1169x1024
+[main] INFO click vote for Bot 5: ok screen 585,512 of 1169x1024 at -0.980 2.480 6.005
+[main] PASS the person's ballot is counted (who voted is public, the choice is sealed): referee's record: {"t":1795548696.2189999,"actor":0}, public voted flags [0,0,0,0,0,0]
+[main] CMD h75 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
+[main] REPLY h75 Bot 5 was locked out.
+[main] re a technician.
+[main] PASS the vote resolves when all have voted: Bot 5 was locked out. / They were a technician.
+[main] CMD h76 where
+[main] REPLY h76 33.37 0.05 39.32 camera 33.37 1.65 39.32
+[main] PASS after the vote the living are sent back where they stood: before 33.37,33.32, Unity feet 33.37 0.05 39.32 camera 33.37 1.65 39.32
+[main] CMD h77 walk 33.67 39.32 2
+[main] REPLY h77 ok reached 33.55 39.32
+[main] PASS and may move again: ok reached 33.55 39.32
+[main] CMD h78 stats
+[main] REPLY h78 triangles 4716 vertices 11118 batches 37 drawcalls 37 setpass 12 shadowcasters 0 frame 3.9ms render 2.0ms
+[main] INFO frame stats end: triangles 4716 vertices 11118 batches 37 drawcalls 37 setpass 12 shadowcasters 0 frame 3.9ms render 2.0ms
+[main] CMD h79 shot station -30 2.25 -14 -45 1.05 -12 75
+[main] REPLY h79 Library/PortKit/shots/hidden-role-single_station.jpg
+[main] INFO shot station: Library/PortKit/shots/hidden-role-single_station.jpg
+[main] INFO page result 25 passed, 0 failed
+[main] DONE
+served: /web/pk-hidden-role.js x1, /web/playtest/hidden-role-playtest.js x1, HEAD /kits/windows/hidden-role x1
+console (main editor): 0 error lines
+RESULT 25 passed, 0 failed
+DONE

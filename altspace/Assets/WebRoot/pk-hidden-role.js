@@ -3,7 +3,7 @@
  * Rules translated from MIT-licensed C# by chocowriter and dmjdesu; runtime portkit (MIT).
  * Licence texts and credits: see the source repository's README.
  */
-/* pk-hidden-role.js: portkit runtime with the rules of 'hidden-role' (protocol pk1, bindings 93cfe78f7a38f0248fba38b674565cb428a15cc9). Built file: do not edit. */
+/* pk-hidden-role.js: portkit runtime with the rules of 'hidden-role' (protocol pk1, bindings dfa38295e9ffc5a8d53a3da5becbd1d091094fdc). Built file: do not edit. */
 (() => {
   var __defProp = Object.defineProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -8954,6 +8954,9 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       joined: () => hud().Joined,
       work: () => hud().WorkAmount,
       regionsOn: () => hud().RegionsOn,
+      lobby: () => match().Lobby().map((p) => p.uid),
+      /** What the HUD last applied its effects for, and where the page thinks the head is (world). */
+      applied: () => ({ ...hud().applied, head: hud().Input.Position }),
       events: (kind) => match().history.filter((e) => e.kind === kind).map((e) => ({ t: e.t, actor: e.actor, target: e.target, detail: e.detail })),
       moves: () => hud().moves.map((mv) => ({ why: mv.why, x: mv.at.x, y: mv.at.y })),
       here: () => {
@@ -9142,7 +9145,7 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
               $obj: "fill"
             },
             {
-              $obj: "fill2"
+              $obj: "fill3"
             }
           ],
           loungeText: {
@@ -10045,19 +10048,19 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
         object: "loungeLeaveButton"
       }
     ],
-    hash: "93cfe78f7a38f0248fba38b674565cb428a15cc9",
+    hash: "dfa38295e9ffc5a8d53a3da5becbd1d091094fdc",
     objects: {
       abortButton: {
         click: true,
         grab: false,
-        path: "Hub/Board/Abort",
+        path: "Station/Regions/R15/Hub/Board/Abort",
         seat: false,
         sync: "none"
       },
       abstainButton: {
         click: true,
         grab: false,
-        path: "Muster/Board/Abstain",
+        path: "Station/Regions/R15/Muster/Board/Abstain",
         seat: false,
         sync: "none"
       },
@@ -10378,7 +10381,7 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       creditsButton: {
         click: true,
         grab: false,
-        path: "Hub/Board/Credits",
+        path: "Station/Regions/R15/Hub/Board/Credits",
         seat: false,
         sync: "none"
       },
@@ -10386,14 +10389,14 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
         active: false,
         click: true,
         grab: false,
-        path: "Hub/CreditsPanel",
+        path: "Station/Regions/R15/Hub/CreditsPanel",
         seat: false,
         sync: "none"
       },
       enterButton: {
         click: true,
         grab: false,
-        path: "Entry/Sign/Enter",
+        path: "Station/Regions/R03/Entry/Sign/Enter",
         seat: false,
         sync: "none"
       },
@@ -10432,38 +10435,38 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
         seat: false,
         sync: "none"
       },
-      fill2: {
+      fill3: {
         click: false,
         grab: false,
-        path: "Hub/Board/JobBar/Fill",
+        path: "Station/Regions/R15/Hub/Board/JobBar/Fill",
         seat: false,
         sync: "none"
       },
       hubBoard: {
         click: false,
         grab: false,
-        path: "Hub/Board",
+        path: "Station/Regions/R15/Hub/Board",
         seat: false,
         sync: "none"
       },
       hubText: {
         click: false,
         grab: false,
-        path: "Hub/Board/Text",
+        path: "Station/Regions/R15/Hub/Board/Text",
         seat: false,
         sync: "none"
       },
       joinButton: {
         click: true,
         grab: false,
-        path: "Hub/Board/Join",
+        path: "Station/Regions/R15/Hub/Board/Join",
         seat: false,
         sync: "none"
       },
       leaveButton: {
         click: true,
         grab: false,
-        path: "Hub/Board/Leave",
+        path: "Station/Regions/R15/Hub/Board/Leave",
         seat: false,
         sync: "none"
       },
@@ -10491,21 +10494,21 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       musterBoard: {
         click: false,
         grab: false,
-        path: "Muster/Board",
+        path: "Station/Regions/R15/Muster/Board",
         seat: false,
         sync: "none"
       },
       musterPost: {
         click: true,
         grab: false,
-        path: "Muster/Post",
+        path: "Station/Regions/R15/Muster/Post",
         seat: false,
         sync: "none"
       },
       musterText: {
         click: false,
         grab: false,
-        path: "Muster/Board/Text",
+        path: "Station/Regions/R15/Muster/Board/Text",
         seat: false,
         sync: "none"
       },
@@ -10786,147 +10789,147 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       startButton: {
         click: true,
         grab: false,
-        path: "Hub/Board/Start",
+        path: "Station/Regions/R15/Hub/Board/Start",
         seat: false,
         sync: "none"
       },
       vote0: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote0",
+        path: "Station/Regions/R15/Muster/Board/Vote0",
         seat: false,
         sync: "none"
       },
       vote1: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote1",
+        path: "Station/Regions/R15/Muster/Board/Vote1",
         seat: false,
         sync: "none"
       },
       vote2: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote2",
+        path: "Station/Regions/R15/Muster/Board/Vote2",
         seat: false,
         sync: "none"
       },
       vote3: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote3",
+        path: "Station/Regions/R15/Muster/Board/Vote3",
         seat: false,
         sync: "none"
       },
       vote4: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote4",
+        path: "Station/Regions/R15/Muster/Board/Vote4",
         seat: false,
         sync: "none"
       },
       vote5: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote5",
+        path: "Station/Regions/R15/Muster/Board/Vote5",
         seat: false,
         sync: "none"
       },
       vote6: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote6",
+        path: "Station/Regions/R15/Muster/Board/Vote6",
         seat: false,
         sync: "none"
       },
       vote7: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote7",
+        path: "Station/Regions/R15/Muster/Board/Vote7",
         seat: false,
         sync: "none"
       },
       vote8: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote8",
+        path: "Station/Regions/R15/Muster/Board/Vote8",
         seat: false,
         sync: "none"
       },
       vote9: {
         click: true,
         grab: false,
-        path: "Muster/Board/Vote9",
+        path: "Station/Regions/R15/Muster/Board/Vote9",
         seat: false,
         sync: "none"
       },
       voteLabel0: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote0/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote0/Label",
         seat: false,
         sync: "none"
       },
       voteLabel1: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote1/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote1/Label",
         seat: false,
         sync: "none"
       },
       voteLabel2: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote2/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote2/Label",
         seat: false,
         sync: "none"
       },
       voteLabel3: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote3/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote3/Label",
         seat: false,
         sync: "none"
       },
       voteLabel4: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote4/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote4/Label",
         seat: false,
         sync: "none"
       },
       voteLabel5: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote5/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote5/Label",
         seat: false,
         sync: "none"
       },
       voteLabel6: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote6/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote6/Label",
         seat: false,
         sync: "none"
       },
       voteLabel7: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote7/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote7/Label",
         seat: false,
         sync: "none"
       },
       voteLabel8: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote8/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote8/Label",
         seat: false,
         sync: "none"
       },
       voteLabel9: {
         click: false,
         grab: false,
-        path: "Muster/Board/Vote9/Label",
+        path: "Station/Regions/R15/Muster/Board/Vote9/Label",
         seat: false,
         sync: "none"
       },
@@ -10945,7 +10948,7 @@ They were a ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Nobody was locked out.";
       "band",
       "shell",
       "hubText",
-      "fill2",
+      "fill3",
       "musterBoard",
       "musterText",
       "voteLabel0",

@@ -1,0 +1,23 @@
+{
+  "name": "@altspacegames/portkit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runtime, fake room and build for games ported to Altspace snippets (protocol tag pk1).",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "node --disable-warning=ExperimentalWarning tools/lint.ts",
+    "unit": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+    "test": "npm run typecheck && npm run lint && npm run unit",
+    "build": "node --disable-warning=ExperimentalWarning tools/build.ts --game sample",
+    "golden": "node --disable-warning=ExperimentalWarning golden/run.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Golden vectors: the upstream rule methods, unchanged (gen/Upstream.g.cs, copied out by extract.ts), compiled with
+       dotnet against UnityStubs.cs, never in Unity. `npm run golden` writes ../vectors/upstream.json. The upstream
+       repository is the clone this port lives in unless Upstream is given (dotnet run -p:Upstream=<path>). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0108;CS0114;CS0162;CS0168;CS0169;CS0219;CS0414;CS0649;CS8981;CS0660;CS0661</NoWarn>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Upstream Condition="'$(Upstream)' == ''">$(MSBuildProjectDirectory)/../../..</Upstream>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="UnityStubs.cs" />
+    <Compile Include="$(Upstream)/Assets/Scripts/GameTypes.cs" />
+    <Compile Include="$(Upstream)/Assets/Scripts/ShipMapData.cs" />
+    <Compile Include="gen/*.cs" />
+    <Compile Include="Harness.cs" />
+  </ItemGroup>
+</Project>

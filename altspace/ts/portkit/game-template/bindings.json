@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "slug": "change-me",
+  "hash": "",
+  "bundles": { "windows": "", "android": "" },
+  "objects": {
+    "counterText": { "path": "Counter/Text", "sync": "none", "grab": false, "click": false, "seat": false },
+    "button": { "path": "Counter/Button", "sync": "none", "grab": false, "click": true, "seat": false }
+  },
+  "refs": ["counterText"],
+  "behaviours": [
+    { "id": "b1", "type": "Counter", "object": "button", "fields": { "label": { "$comp": "counterText", "kind": "TMP" } } }
+  ],
+  "events": []
+}

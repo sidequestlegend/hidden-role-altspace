@@ -1,0 +1,25 @@
+{
+  "name": "hidden-role-rules",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The rules of a hidden-role station game (working slug hidden-role), translated from the MIT-licensed upstream C#, on the portkit runtime. portkit/ is a copy of the shared kit.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "node --disable-warning=ExperimentalWarning portkit/tools/lint.ts src portkit/src",
+    "unit": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+    "test": "npm run typecheck && npm run lint && npm run unit",
+    "build": "node --disable-warning=ExperimentalWarning portkit/tools/build.ts --game . --out ../Assets/WebRoot",
+    "golden": "node --disable-warning=ExperimentalWarning golden/extract.ts && dotnet run --project golden -c Release -- vectors/upstream.json src/station-map.json",
+    "map": "node --disable-warning=ExperimentalWarning tools/convert-map.ts ../../Assets/Resources/Maps/astra_research_complex_blockout_01.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "license": "MIT"
+}

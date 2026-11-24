@@ -1,0 +1,316 @@
+{
+  "schema": 1,
+  "slug": "tic-tac-toe",
+  "hash": "",
+  "bundles": {
+    "windows": "",
+    "android": ""
+  },
+  "objects": {
+    "board": {
+      "path": "Board",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "status": {
+      "path": "Board/Status",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "seatX": {
+      "path": "Board/SeatX",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "seatO": {
+      "path": "Board/SeatO",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "reset": {
+      "path": "Board/Reset",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell0": {
+      "path": "Board/Cells/Cell0",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell1": {
+      "path": "Board/Cells/Cell1",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell2": {
+      "path": "Board/Cells/Cell2",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell3": {
+      "path": "Board/Cells/Cell3",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell4": {
+      "path": "Board/Cells/Cell4",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell5": {
+      "path": "Board/Cells/Cell5",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell6": {
+      "path": "Board/Cells/Cell6",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell7": {
+      "path": "Board/Cells/Cell7",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "cell8": {
+      "path": "Board/Cells/Cell8",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    }
+  },
+  "refs": [
+    "status",
+    "seatX",
+    "seatO",
+    "cell0",
+    "cell1",
+    "cell2",
+    "cell3",
+    "cell4",
+    "cell5",
+    "cell6",
+    "cell7",
+    "cell8"
+  ],
+  "behaviours": [
+    {
+      "id": "game",
+      "type": "TicTacToe",
+      "object": "board",
+      "fields": {
+        "statusText": {
+          "$comp": "status",
+          "kind": "TMP"
+        },
+        "cellTexts": [
+          {
+            "$comp": "cell0",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell1",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell2",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell3",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell4",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell5",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell6",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell7",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "cell8",
+            "kind": "TMP"
+          }
+        ],
+        "seatTexts": [
+          {
+            "$comp": "seatX",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "seatO",
+            "kind": "TMP"
+          }
+        ]
+      }
+    },
+    {
+      "id": "c0",
+      "type": "Cell",
+      "object": "cell0",
+      "fields": {
+        "index": 0,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c1",
+      "type": "Cell",
+      "object": "cell1",
+      "fields": {
+        "index": 1,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c2",
+      "type": "Cell",
+      "object": "cell2",
+      "fields": {
+        "index": 2,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c3",
+      "type": "Cell",
+      "object": "cell3",
+      "fields": {
+        "index": 3,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c4",
+      "type": "Cell",
+      "object": "cell4",
+      "fields": {
+        "index": 4,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c5",
+      "type": "Cell",
+      "object": "cell5",
+      "fields": {
+        "index": 5,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c6",
+      "type": "Cell",
+      "object": "cell6",
+      "fields": {
+        "index": 6,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c7",
+      "type": "Cell",
+      "object": "cell7",
+      "fields": {
+        "index": 7,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "c8",
+      "type": "Cell",
+      "object": "cell8",
+      "fields": {
+        "index": 8,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "sx",
+      "type": "SeatButton",
+      "object": "seatX",
+      "fields": {
+        "seat": 0,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "so",
+      "type": "SeatButton",
+      "object": "seatO",
+      "fields": {
+        "seat": 1,
+        "game": {
+          "$beh": "game"
+        }
+      }
+    },
+    {
+      "id": "rb",
+      "type": "ResetButton",
+      "object": "reset",
+      "fields": {
+        "game": {
+          "$beh": "game"
+        }
+      }
+    }
+  ],
+  "events": []
+}

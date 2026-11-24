@@ -1,0 +1,3 @@
+hidden-role (working title): a hidden-role station game for Altspace snippets.
+Rules translated from MIT-licensed C# by chocowriter and dmjdesu; runtime portkit (MIT).
+Licence texts and credits: see the source repository's README.

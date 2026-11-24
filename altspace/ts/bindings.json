@@ -1,0 +1,951 @@
+{
+  "schema": 1,
+  "slug": "hidden-role",
+  "provisional": "Hand-written before the kit builder exists: object paths and the kit's layout are proposals (PORT.md, 'Kit'). The kit builder will replace this file and fill in hash and bundles.",
+  "hash": "",
+  "bundles": {
+    "windows": "",
+    "android": ""
+  },
+  "objects": {
+    "hubBoard": {
+      "path": "Hub/Board",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "hubText": {
+      "path": "Hub/Board/Text",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "joinButton": {
+      "path": "Hub/Board/Join",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "startButton": {
+      "path": "Hub/Board/Start",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "abortButton": {
+      "path": "Hub/Board/Abort",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "musterText": {
+      "path": "Muster/Board/Text",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote0": {
+      "path": "Muster/Board/Vote0",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel0": {
+      "path": "Muster/Board/Vote0/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote1": {
+      "path": "Muster/Board/Vote1",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel1": {
+      "path": "Muster/Board/Vote1/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote2": {
+      "path": "Muster/Board/Vote2",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel2": {
+      "path": "Muster/Board/Vote2/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote3": {
+      "path": "Muster/Board/Vote3",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel3": {
+      "path": "Muster/Board/Vote3/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote4": {
+      "path": "Muster/Board/Vote4",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel4": {
+      "path": "Muster/Board/Vote4/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote5": {
+      "path": "Muster/Board/Vote5",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel5": {
+      "path": "Muster/Board/Vote5/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote6": {
+      "path": "Muster/Board/Vote6",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel6": {
+      "path": "Muster/Board/Vote6/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote7": {
+      "path": "Muster/Board/Vote7",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel7": {
+      "path": "Muster/Board/Vote7/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote8": {
+      "path": "Muster/Board/Vote8",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel8": {
+      "path": "Muster/Board/Vote8/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "vote9": {
+      "path": "Muster/Board/Vote9",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "voteLabel9": {
+      "path": "Muster/Board/Vote9/Label",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "abstainButton": {
+      "path": "Muster/Board/Abstain",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "loungeText": {
+      "path": "Lounge/Board/Text",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "personalPanel": {
+      "path": "Personal/Panel",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "panelText": {
+      "path": "Personal/Panel/Text",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "panelUse": {
+      "path": "Personal/Panel/Use",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "panelEliminate": {
+      "path": "Personal/Panel/Eliminate",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "panelAlarm": {
+      "path": "Personal/Panel/Alarm",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "panelFault": {
+      "path": "Personal/Panel/Fault",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "panelHatch": {
+      "path": "Personal/Panel/Hatch",
+      "sync": "none",
+      "grab": false,
+      "click": true,
+      "seat": false
+    },
+    "shell": {
+      "path": "Personal/Shell",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body0": {
+      "path": "Station/Bodies/Body0",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body1": {
+      "path": "Station/Bodies/Body1",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body2": {
+      "path": "Station/Bodies/Body2",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body3": {
+      "path": "Station/Bodies/Body3",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body4": {
+      "path": "Station/Bodies/Body4",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body5": {
+      "path": "Station/Bodies/Body5",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body6": {
+      "path": "Station/Bodies/Body6",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body7": {
+      "path": "Station/Bodies/Body7",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body8": {
+      "path": "Station/Bodies/Body8",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "body9": {
+      "path": "Station/Bodies/Body9",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot0": {
+      "path": "Station/Bots/Bot0",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot1": {
+      "path": "Station/Bots/Bot1",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot2": {
+      "path": "Station/Bots/Bot2",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot3": {
+      "path": "Station/Bots/Bot3",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot4": {
+      "path": "Station/Bots/Bot4",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot5": {
+      "path": "Station/Bots/Bot5",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot6": {
+      "path": "Station/Bots/Bot6",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot7": {
+      "path": "Station/Bots/Bot7",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "bot8": {
+      "path": "Station/Bots/Bot8",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console0": {
+      "path": "Station/Consoles/Console00",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console1": {
+      "path": "Station/Consoles/Console01",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console2": {
+      "path": "Station/Consoles/Console02",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console3": {
+      "path": "Station/Consoles/Console03",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console4": {
+      "path": "Station/Consoles/Console04",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console5": {
+      "path": "Station/Consoles/Console05",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console6": {
+      "path": "Station/Consoles/Console06",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console7": {
+      "path": "Station/Consoles/Console07",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console8": {
+      "path": "Station/Consoles/Console08",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console9": {
+      "path": "Station/Consoles/Console09",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console10": {
+      "path": "Station/Consoles/Console10",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console11": {
+      "path": "Station/Consoles/Console11",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console12": {
+      "path": "Station/Consoles/Console12",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console13": {
+      "path": "Station/Consoles/Console13",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console14": {
+      "path": "Station/Consoles/Console14",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console15": {
+      "path": "Station/Consoles/Console15",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console16": {
+      "path": "Station/Consoles/Console16",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console17": {
+      "path": "Station/Consoles/Console17",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console18": {
+      "path": "Station/Consoles/Console18",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console19": {
+      "path": "Station/Consoles/Console19",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console20": {
+      "path": "Station/Consoles/Console20",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "console21": {
+      "path": "Station/Consoles/Console21",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    },
+    "speaker": {
+      "path": "Audio/Speaker",
+      "sync": "none",
+      "grab": false,
+      "click": false,
+      "seat": false
+    }
+  },
+  "refs": [
+    "hubText",
+    "musterText",
+    "voteLabel0",
+    "voteLabel1",
+    "voteLabel2",
+    "voteLabel3",
+    "voteLabel4",
+    "voteLabel5",
+    "voteLabel6",
+    "voteLabel7",
+    "voteLabel8",
+    "voteLabel9",
+    "loungeText",
+    "panelText",
+    "shell",
+    "body0",
+    "body1",
+    "body2",
+    "body3",
+    "body4",
+    "body5",
+    "body6",
+    "body7",
+    "body8",
+    "body9",
+    "bot0",
+    "bot1",
+    "bot2",
+    "bot3",
+    "bot4",
+    "bot5",
+    "bot6",
+    "bot7",
+    "bot8",
+    "console0",
+    "console1",
+    "console2",
+    "console3",
+    "console4",
+    "console5",
+    "console6",
+    "console7",
+    "console8",
+    "console9",
+    "console10",
+    "console11",
+    "console12",
+    "console13",
+    "console14",
+    "console15",
+    "console16",
+    "console17",
+    "console18",
+    "console19",
+    "console20",
+    "console21",
+    "speaker"
+  ],
+  "behaviours": [
+    {
+      "id": "match",
+      "type": "Match",
+      "object": "hubBoard"
+    },
+    {
+      "id": "dealer",
+      "type": "Dealer",
+      "object": null
+    },
+    {
+      "id": "hud",
+      "type": "RuntimeHud",
+      "object": "personalPanel",
+      "fields": {
+        "hubText": {
+          "$comp": "hubText",
+          "kind": "TMP"
+        },
+        "musterText": {
+          "$comp": "musterText",
+          "kind": "TMP"
+        },
+        "loungeText": {
+          "$comp": "loungeText",
+          "kind": "TMP"
+        },
+        "panelText": {
+          "$comp": "panelText",
+          "kind": "TMP"
+        },
+        "voteLabels": [
+          {
+            "$comp": "voteLabel0",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel1",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel2",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel3",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel4",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel5",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel6",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel7",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel8",
+            "kind": "TMP"
+          },
+          {
+            "$comp": "voteLabel9",
+            "kind": "TMP"
+          }
+        ],
+        "personalPanel": {
+          "$obj": "personalPanel"
+        },
+        "shell": {
+          "$obj": "shell"
+        },
+        "bodies": [
+          {
+            "$obj": "body0"
+          },
+          {
+            "$obj": "body1"
+          },
+          {
+            "$obj": "body2"
+          },
+          {
+            "$obj": "body3"
+          },
+          {
+            "$obj": "body4"
+          },
+          {
+            "$obj": "body5"
+          },
+          {
+            "$obj": "body6"
+          },
+          {
+            "$obj": "body7"
+          },
+          {
+            "$obj": "body8"
+          },
+          {
+            "$obj": "body9"
+          }
+        ],
+        "botMarkers": [
+          {
+            "$obj": "bot0"
+          },
+          {
+            "$obj": "bot1"
+          },
+          {
+            "$obj": "bot2"
+          },
+          {
+            "$obj": "bot3"
+          },
+          {
+            "$obj": "bot4"
+          },
+          {
+            "$obj": "bot5"
+          },
+          {
+            "$obj": "bot6"
+          },
+          {
+            "$obj": "bot7"
+          },
+          {
+            "$obj": "bot8"
+          }
+        ],
+        "consoles": [
+          {
+            "$obj": "console0"
+          },
+          {
+            "$obj": "console1"
+          },
+          {
+            "$obj": "console2"
+          },
+          {
+            "$obj": "console3"
+          },
+          {
+            "$obj": "console4"
+          },
+          {
+            "$obj": "console5"
+          },
+          {
+            "$obj": "console6"
+          },
+          {
+            "$obj": "console7"
+          },
+          {
+            "$obj": "console8"
+          },
+          {
+            "$obj": "console9"
+          },
+          {
+            "$obj": "console10"
+          },
+          {
+            "$obj": "console11"
+          },
+          {
+            "$obj": "console12"
+          },
+          {
+            "$obj": "console13"
+          },
+          {
+            "$obj": "console14"
+          },
+          {
+            "$obj": "console15"
+          },
+          {
+            "$obj": "console16"
+          },
+          {
+            "$obj": "console17"
+          },
+          {
+            "$obj": "console18"
+          },
+          {
+            "$obj": "console19"
+          },
+          {
+            "$obj": "console20"
+          },
+          {
+            "$obj": "console21"
+          }
+        ]
+      }
+    },
+    {
+      "id": "link",
+      "type": "PlayerLink",
+      "object": null,
+      "perPlayer": true
+    }
+  ],
+  "events": [
+    {
+      "object": "joinButton",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickJoin"
+    },
+    {
+      "object": "startButton",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickStart"
+    },
+    {
+      "object": "abortButton",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickAbort"
+    },
+    {
+      "object": "vote0",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote0"
+    },
+    {
+      "object": "vote1",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote1"
+    },
+    {
+      "object": "vote2",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote2"
+    },
+    {
+      "object": "vote3",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote3"
+    },
+    {
+      "object": "vote4",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote4"
+    },
+    {
+      "object": "vote5",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote5"
+    },
+    {
+      "object": "vote6",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote6"
+    },
+    {
+      "object": "vote7",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote7"
+    },
+    {
+      "object": "vote8",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote8"
+    },
+    {
+      "object": "vote9",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickVote9"
+    },
+    {
+      "object": "abstainButton",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickAbstain"
+    },
+    {
+      "object": "panelUse",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickUse"
+    },
+    {
+      "object": "panelEliminate",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickEliminate"
+    },
+    {
+      "object": "panelAlarm",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickAlarm"
+    },
+    {
+      "object": "panelFault",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickFault"
+    },
+    {
+      "object": "panelHatch",
+      "kind": "click",
+      "behaviour": "hud",
+      "method": "ClickHatch"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "com.altspacegames.portkit",
+  "version": "0.1.0",
+  "displayName": "Port Kit",
+  "description": "Editor-only tooling for porting open-source games to Altspace snippets: graph writer with allow-list check, kit builder base, bindings exporter, relay graph, bundle build and check, Play-mode kit test, publish and release tools, and a file-driven editor remote. Nothing in this package ships in a world.",
+  "unity": "6000.3",
+  "author": {
+    "name": "AltspaceGames"
+  },
+  "dependencies": {
+    "com.sidequest.creator-sdk": "4.0.29"
+  }
+}

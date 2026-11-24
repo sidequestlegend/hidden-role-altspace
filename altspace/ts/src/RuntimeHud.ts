@@ -19,6 +19,7 @@ import { ABSTAIN, Announcement, Btn, Fault, FAULT_NAMES, JOB_KIND_NAMES, JobKind
 import { emptyMatch, type Match, type PublicMatch, RingPosition } from "./Match.ts";
 import type { PlayerLink } from "./PlayerLink.ts";
 import { Dist, STATION } from "./ShipMap.ts";
+import type { JobStation } from "./ShipMapData.ts";
 
 /** The lounge is a sealed room this far below the station unless the snippet says where (PORT.md 5.7). */
 const LOUNGE_OFFSET = new Vector3(0, -70, 0);
@@ -31,6 +32,10 @@ const DIM = new Color(0.25, 0.28, 0.32, 1);
 const AMBER = new Color(1, 0.55, 0.1, 1);
 const CLIP_ALERT = 0;
 const CLIP_ALARM = 1;
+/** Where the boarding pad stands, outside the station's south wall (map units): "Leave" goes there. */
+export const ENTRY_POINT = new Vector2(6, -57.6);
+/** A console click on a hold job keeps Use down this much longer than the job needs, then lets go. */
+const HOLD_MARGIN = 0.35;
 
 function parseVector(text: string | undefined, fallback: Vector3): Vector3 {
   const parts = (text ?? "").trim().split(/\s+/).map(Number);
@@ -61,6 +66,15 @@ export class RuntimeHud extends Behaviour {
   bodies: GameObject[] = [];
   botMarkers: GameObject[] = [];
   consoles: GameObject[] = [];
+  /** The jobs-done bars (the hub board's and the personal panel's): fills scaled along x from their left end. */
+  jobBars: GameObject[] = [];
+  /** The personal panel's work bar: how far the job (or reset) in hand has got, as this client sees it. */
+  workBar: GameObject | null = null;
+  /** The timing band drawn on the work bar while a timing job sweeps. */
+  workBand: GameObject | null = null;
+  /** Turned to face this player while a muster runs. */
+  musterBoard: GameObject | null = null;
+  creditsPanel: GameObject | null = null;
 
   // ---- local state --------------------------------------------------------------------------------------------
   settings!: Settings;
@@ -74,6 +88,14 @@ export class RuntimeHud extends Behaviour {
   private seq = 0;
   private sealing = false;
   private useLatched = false;
+  /** A console click on a hold job (or a reset) lets Use go at this local time (0: no). */
+  private autoReleaseAt = 0;
+  /** Local time Use last went down, and the taps counted at one console (the work bar). */
+  private useDownAt = 0;
+  private tapStation = -1;
+  private taps = 0;
+  private lastWork = -1;
+  private creditsOpen = false;
   /** What the local effects were last applied for. */
   private applied = { round: -1, state: MatchState.Lobby as number, alive: true, inMatch: false, placedRound: -1, slot: -1 };
   private returnPoint: Vector2 | null = null;
@@ -123,9 +145,9 @@ export class RuntimeHud extends Behaviour {
 
   private InsideStation(w: Vector3): boolean {
     if (w.y < this.origin.y - 3 || w.y > this.origin.y + 8) return false;
+    // inside, or within a metre of, a room or corridor (the boarding pad outside the south wall is not inside)
     const p = this.ToMap(w);
-    const b = STATION.PlayBounds;
-    return p.x >= b.xMin - 2 && p.x <= b.xMax + 2 && p.y >= b.yMin - 2 && p.y <= b.yMax + 2;
+    return [...STATION.RoomBounds, ...STATION.Corridors].some((r) => p.x >= r.xMin - 1 && p.x <= r.xMax + 1 && p.y >= r.yMin - 1 && p.y <= r.yMax + 1);
   }
 
   private Teleport(why: string, at: Vector2, faceToward: Vector2 | null = null, world: Vector3 | null = null): void {
@@ -184,6 +206,11 @@ export class RuntimeHud extends Behaviour {
   /** A logical button went down (true) or up. `arg` is the vote target or the hatch index. */
   Press(button: number, down: boolean, arg = 0): void {
     const bit = 1 << button;
+    if (button === Btn.Use && down && (this.held & bit) === 0) {
+      this.useDownAt = this.Time.time;
+      this.CountTap();
+    }
+    if (button === Btn.Use && !down) this.autoReleaseAt = 0;
     if (down) this.held |= bit;
     else this.held &= ~bit;
     const m = this.M;
@@ -292,6 +319,101 @@ export class RuntimeHud extends Behaviour {
     this.Tap(Btn.Vote, playerNumber);
   }
 
+  /** A click on a station object (StationButton): consoles, fault panels, the post, markers, the boarding pad. */
+  ClickStation(kind: string, index: number): void {
+    switch (kind) {
+      case "job":
+        this.ClickConsole(index);
+        break;
+      case "panel":
+        this.ClickFaultPanel();
+        break;
+      case "post":
+        // the post calls a muster with Use (upstream: E at the button)
+        this.Tap(Btn.Use);
+        break;
+      case "body":
+        // a body is reported with the alarm (upstream: R near it)
+        this.Tap(Btn.Alarm);
+        break;
+      case "bot":
+        this.Tap(Btn.Eliminate);
+        break;
+      case "board":
+        this.Board();
+        break;
+      case "leave":
+        this.Leave();
+        break;
+      case "credits":
+        this.creditsOpen = !this.creditsOpen;
+        this.creditsPanel?.SetActive(this.creditsOpen);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /**
+   * A console: Use as the job's kind needs it, so a click works a job the way the key does. Hold: down, and let go
+   * once the hold is done; tap: one press; timing: the first click starts the sweep, the second lets go (inside the
+   * band to finish it). The rules pick the nearest assigned job in range, as they do for the key.
+   */
+  ClickConsole(index: number): void {
+    const station = STATION.JobStations[index];
+    if (!station) return;
+    const held = (this.held & (1 << Btn.Use)) !== 0;
+    if (station.Kind === JobKind.Tap) {
+      if (held) this.Press(Btn.Use, false);
+      this.Tap(Btn.Use);
+    } else if (station.Kind === JobKind.Timing) {
+      this.Press(Btn.Use, !held);
+    } else if (!held) {
+      this.Press(Btn.Use, true);
+      this.autoReleaseAt = this.Time.time + this.settings.holdSeconds + HOLD_MARGIN;
+    } else {
+      this.Press(Btn.Use, false);
+    }
+    this.useLatched = false;
+  }
+
+  /** A fault panel: the saboteur starts a fault there; a technician holds Use to reset it (2 s). */
+  ClickFaultPanel(): void {
+    if (this.MyRole() === Role.Saboteur) {
+      this.Tap(Btn.Fault);
+      return;
+    }
+    if ((this.held & (1 << Btn.Use)) !== 0) {
+      this.Press(Btn.Use, false);
+      return;
+    }
+    this.Press(Btn.Use, true);
+    this.autoReleaseAt = this.Time.time + this.settings.resetSeconds + HOLD_MARGIN;
+    this.useLatched = false;
+  }
+
+  ClickCredits(): void {
+    this.ClickStation("credits", 0);
+  }
+
+  ClickLeave(): void {
+    this.Leave();
+  }
+
+  /** The boarding pad outside the station: into the Commons, beside the hub board. */
+  Board(): void {
+    const n = STATION.SpawnPoints.length;
+    const spot = STATION.GetSpawnPoint(Math.min(n - 1, Math.floor(this.Random.Range(0, n))), Vector2.zero);
+    this.Teleport("board", spot, STATION.MeetingPoint);
+  }
+
+  /** "Leave the station" on the hub board: out to the boarding pad, unless the player is alive in a running match. */
+  Leave(): void {
+    const slot = this.MySlot();
+    if (slot >= 0 && this.Active(this.M) && this.M.al[slot] === 1) return;
+    this.Teleport("leave", ENTRY_POINT, new Vector2(ENTRY_POINT.x, ENTRY_POINT.y + 5));
+  }
+
   ClickJoin(): void {
     const link = this.Link();
     if (!link) return;
@@ -320,7 +442,9 @@ export class RuntimeHud extends Behaviour {
     const slot = this.MySlot();
     // Keep offering to referee while on the roster of a running match, whatever the join button says.
     if (slot >= 0 && this.Active(m) && this.Joined) this.Networking.SetRefereeCandidate(true);
+    if (this.autoReleaseAt > 0 && this.Time.time >= this.autoReleaseAt) this.Press(Btn.Use, false);
     this.Effects(m, slot);
+    this.WorkBar(m, slot);
     if (this.Time.frameCount % BEAT_TICKS === 0) {
       void this.SendBeat(m, slot);
       this.Refresh();
@@ -434,7 +558,10 @@ export class RuntimeHud extends Behaviour {
     this.lastHeadSent = w.clone();
     const forward = head ? head.rotation.rotate(Vector3.forward) : Vector3.forward;
     const flat = new Vector3(forward.x, 0, forward.z).normalized;
-    if (this.personalPanel) this.personalPanel.transform.position = w.add(flat.scale(0.55)).add(new Vector3(0, -0.35, 0));
+    if (this.personalPanel) {
+      const yaw = (Math.atan2(flat.x, flat.z) * 180) / Math.PI;
+      this.personalPanel.transform.SetPositionAndRotation(w.add(flat.scale(0.55)).add(new Vector3(0, -0.35, 0)), Quaternion.Euler(25, yaw, 0));
+    }
     if (this.shell) this.shell.transform.position = w.clone();
   }
 
@@ -491,7 +618,7 @@ export class RuntimeHud extends Behaviour {
   }
 
   private HubText(m: PublicMatch, rel: number): string {
-    const lines: string[] = ["HOLLOW REEF  -  station shift"];
+    const lines: string[] = ["HIDDEN ROLE  -  station shift"];
     if (m.st === MatchState.Lobby) {
       const lobby = this.match.Lobby();
       const bots = Math.min(this.settings.bots, this.settings.maxPlayers - Math.min(lobby.length, this.settings.maxPlayers));
@@ -599,6 +726,19 @@ export class RuntimeHud extends Behaviour {
 
   /** Bodies and bots for everyone; consoles and the blackout shell for the local player only. */
   private Markers(m: PublicMatch, slot: number): void {
+    // The jobs-done bar (upstream's crew task bar): everyone sees it while a match runs.
+    const done = this.Active(m) || m.st === MatchState.Ended ? (m.ct > 0 ? Math.min(1, m.cd / m.ct) : 0) : 0;
+    for (const bar of this.jobBars) this.SetFill(bar, done);
+    // The muster board turns to face whoever looks at it (it is this page's own copy).
+    if (this.musterBoard && m.st === MatchState.Muster) {
+      const w = this.Input.Position;
+      if (w) {
+        const at = this.ToWorld(STATION.MeetingPoint);
+        const yaw = (Math.atan2(at.x - w.x, at.z - w.z) * 180) / Math.PI;
+        const want = Math.round(yaw / 5) * 5;
+        if (Math.abs(this.musterBoard.transform.eulerAngles.y - want) > 0.5) this.musterBoard.transform.rotation = Quaternion.Euler(0, want, 0);
+      }
+    }
     for (let i = 0; i < this.bodies.length; i++) {
       const b = m.st !== MatchState.Lobby ? m.bd[i] : 0;
       const body = this.bodies[i]!;
@@ -641,6 +781,79 @@ export class RuntimeHud extends Behaviour {
       if (radius > 0) this.shell.transform.localScale = new Vector3(radius * 2, radius * 2, radius * 2);
       if (this.shell.activeSelf !== radius > 0) this.shell.SetActive(radius > 0);
     }
+  }
+
+  /** A bar's fill, scaled along x from its left end (0 hides it). */
+  private SetFill(fill: GameObject, amount: number): void {
+    const x = Math.round(Math.max(0, Math.min(1, amount)) * 100) / 100;
+    if (Math.abs(fill.transform.localScale.x - Math.max(x, 0.001)) > 0.004) fill.transform.localScale = new Vector3(Math.max(x, 0.001), 1, 1);
+    if (fill.activeSelf !== x > 0) fill.SetActive(x > 0);
+  }
+
+  private CountTap(): void {
+    const here = this.MyMapPosition();
+    const near = here ? this.NearestOpenJob(here) : null;
+    const id = near && near.d <= this.settings.jobRange + this.settings.rangeSlack ? near.s.Id : -1;
+    if (id !== this.tapStation) {
+      this.tapStation = id;
+      this.taps = 0;
+    }
+    if (id >= 0) this.taps++;
+  }
+
+  private NearestOpenJob(here: Vector2): { s: JobStation; d: number } | null {
+    const mine = this.Mine();
+    if (!mine) return null;
+    let best: { s: JobStation; d: number } | null = null;
+    for (const s of STATION.JobStations) {
+      if ((mine.a & (1 << s.Id)) === 0 || (mine.c & (1 << s.Id)) !== 0) continue;
+      const d = Dist(here, s.Position);
+      if (!best || d < best.d) best = { s, d };
+    }
+    return best;
+  }
+
+  /**
+   * The work bar on the personal panel: how far the job in hand has got, worked out here from this player's own
+   * input (the referee's count is not published). Hold: time held over the hold time; tap: presses at this console
+   * over the count; timing: the sweep, with the band drawn; a reset at a fault panel: time held over 2 s.
+   */
+  private WorkBar(m: PublicMatch, slot: number): void {
+    let amount = 0;
+    let band = false;
+    const here = this.MyMapPosition();
+    const alive = slot >= 0 && m.st === MatchState.Playing && m.al[slot] === 1;
+    const held = (this.held & (1 << Btn.Use)) !== 0;
+    const now = this.Time.time;
+    if (alive && here) {
+      const reach = this.settings.rangeSlack;
+      const panel = m.fk ? STATION.PanelFor(m.fk) : null;
+      if (panel && this.MyRole() === Role.Technician && Dist(here, panel.Position) <= this.settings.faultRange + reach) {
+        amount = held ? (now - this.useDownAt) / this.settings.resetSeconds : 0;
+      } else if (m.fk !== Fault.Jam) {
+        const near = this.NearestOpenJob(here);
+        if (near && near.d <= this.settings.jobRange + reach) {
+          if (near.s.Kind === JobKind.Hold) amount = held ? (now - this.useDownAt) / this.settings.holdSeconds : 0;
+          else if (near.s.Kind === JobKind.Tap) amount = this.tapStation === near.s.Id ? this.taps / this.settings.tapCount : 0;
+          else {
+            band = true;
+            const cycle = Math.max(0.5, this.settings.timingCycleSeconds);
+            amount = held ? ((now - this.useDownAt) % cycle) / cycle : 0;
+          }
+        }
+      }
+    }
+    const shown = Math.round(Math.min(1, amount) * 50) / 50;
+    if (shown !== this.lastWork) {
+      this.lastWork = shown;
+      if (this.workBar) this.SetFill(this.workBar, shown);
+    }
+    if (this.workBand && this.workBand.activeSelf !== band) this.workBand.SetActive(band);
+  }
+
+  /** The work bar's fill as last sent (tests). */
+  get WorkAmount(): number {
+    return Math.max(0, this.lastWork);
   }
 
   /** True while the blackout shell is up on this client (tests). */

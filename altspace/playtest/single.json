@@ -1,0 +1,10 @@
+{
+  "name": "hidden-role-single",
+  "timeout": 900,
+  "players": 1,
+  "elements": [
+    "<script>window.__hrPlan = \"single\";</script>",
+    "<script src=\"{SERVER}/web/playtest/hidden-role-playtest.js\"></script>",
+    "<bs-snippet name=\"hidden-role\" title=\"Hidden Role\" script=\"{SERVER}/web/pk-hidden-role.js\" position=\"0 0.05 6\" bots=\"5\" shift-seconds=\"900\" breach-seconds=\"600\" windows=\"{SERVER}/kits/windows/hidden-role\" android=\"{SERVER}/kits/android/hidden-role\"></bs-snippet>"
+  ]
+}

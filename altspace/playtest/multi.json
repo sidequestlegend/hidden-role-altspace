@@ -1,0 +1,10 @@
+{
+  "name": "hidden-role-multi",
+  "timeout": 600,
+  "players": 2,
+  "elements": [
+    "<script>window.__hrPlan = \"multi\";</script>",
+    "<script src=\"{SERVER}/web/playtest/hidden-role-playtest.js\"></script>",
+    "<bs-snippet name=\"hidden-role\" title=\"Hidden Role\" script=\"{SERVER}/web/pk-hidden-role.js\" position=\"0 0.05 6\" bots=\"3\" shift-seconds=\"900\" windows=\"{SERVER}/kits/windows/hidden-role\" android=\"{SERVER}/kits/android/hidden-role\"></bs-snippet>"
+  ]
+}

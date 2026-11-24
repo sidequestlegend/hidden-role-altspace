@@ -1,0 +1,26 @@
+{
+    "name": "PortKit.Editor",
+    "rootNamespace": "PortKit",
+    "references": [
+        "PortKit.Remote",
+        "BS.SDK",
+        "BS.SDKEditor",
+        "Unity.VisualScripting.Core",
+        "Unity.VisualScripting.Flow",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI",
+        "Unity.EditorCoroutines.Editor",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

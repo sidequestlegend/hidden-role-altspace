@@ -5,19 +5,75 @@
 // roles (PORT.md Q2).
 
 import type { GameDefinition, GameInstance } from "../portkit/src/index.ts";
+import { Vector2 } from "../portkit/src/index.ts";
 import { Dealer } from "./Dealer.ts";
 import { Match } from "./Match.ts";
 import { PlayerLink } from "./PlayerLink.ts";
 import { RuntimeHud } from "./RuntimeHud.ts";
+import { STATION } from "./ShipMap.ts";
+import { StationButton } from "./StationButton.ts";
 
 const game: GameDefinition = {
   slug: "hidden-role",
-  behaviours: { Match, Dealer, RuntimeHud, PlayerLink },
+  behaviours: { Match, Dealer, RuntimeHud, PlayerLink, StationButton },
   referee: "declared",
-  debug: (instance: GameInstance) => ({
-    match: () => instance.behaviour<Match>("match").m,
-    hud: () => instance.behaviour<RuntimeHud>("hud").texts,
-  }),
+  debug: (instance: GameInstance) => debugHooks(instance),
 };
+
+/**
+ * Readers for the Play-mode tests (window.__pk1.debug["hidden-role:<inst>"]). Everything here is this page's own view:
+ * the public match, the local player's own sealed entry, the boards' texts. `force` is the rules' test aid (the
+ * referee's page only; the Node tests use it the same way).
+ */
+function debugHooks(instance: GameInstance): Record<string, unknown> {
+  const hud = () => instance.behaviour<RuntimeHud>("hud");
+  const match = () => instance.behaviour<Match>("match");
+  return {
+    match: () => match().m,
+    hud: () => hud().texts,
+    me: () => {
+      const p = hud().Networking.LocalPlayer;
+      return { uid: p.uid, sid: p.sid, name: p.displayName };
+    },
+    slot: () => hud().MySlot(),
+    role: () => hud().MyRole(),
+    mine: () => hud().Mine(),
+    joined: () => hud().Joined,
+    work: () => hud().WorkAmount,
+    moves: () => hud().moves.map((mv) => ({ why: mv.why, x: mv.at.x, y: mv.at.y })),
+    here: () => {
+      const p = hud().MyMapPosition();
+      return p ? [p.x, p.y] : null;
+    },
+    world: (x: number, y: number, h = 0) => {
+      const w = hud().ToWorld(new Vector2(x, y), h);
+      return [w.x, w.y, w.z];
+    },
+    /** The route a walker takes from (x, y) to (tx, ty): the rules' own steering, a point every few metres. */
+    route: (x: number, y: number, tx: number, ty: number, radius = 0.3) => {
+      const points: number[][] = [];
+      let at = new Vector2(x, y);
+      const goal = new Vector2(tx, ty);
+      for (let i = 0; i < 400 && Vector2.Distance(at, goal) > 0.05; i++) {
+        const next = STATION.NextStep(at, goal, radius);
+        if (Vector2.Distance(next, at) < 0.01) break;
+        points.push([next.x, next.y]);
+        at = next;
+      }
+      return points;
+    },
+    walkable: (x: number, y: number, radius = 0) => !STATION.IsBlocked(new Vector2(x, y), radius),
+    job: (id: number) => {
+      const s = STATION.JobStations[id];
+      return s ? { id: s.Id, name: s.Name, kind: s.Kind, x: s.Position.x, y: s.Position.y } : null;
+    },
+    pathOf: (key: string) => instance.bindings.objects[key]?.path ?? null,
+    isReferee: () => match().Networking.IsReferee,
+    force: (uids: string[] | null) => {
+      match().forcedSaboteurs = uids;
+      return match().Networking.IsReferee;
+    },
+  };
+}
 
 export default game;

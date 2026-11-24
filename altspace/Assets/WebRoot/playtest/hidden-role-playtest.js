@@ -256,8 +256,37 @@
     return done();
   }
 
+  /**
+   * The referee keeps its own position of each player (PORT.md D12): the person is put 20 m or more away at once (the
+   * test's "place", a jump no walk could make), and the referee's position must not be there a second later; it then
+   * follows at most at a run. Put back, it comes back.
+   */
+  async function jumpNotTaken(slot) {
+    if (m().st !== ST.Playing || m().al[slot] !== 1 || !dbg().isReferee()) return;
+    const here = dbg().here();
+    const to = [0, -3];
+    if (!here || dist2(here, to) < 20) return say("INFO", "the jump check needs the person 20 m from the Commons: skipped this time");
+    const back = (await where()).feet;
+    const t0 = Date.now();
+    say("INFO", "jump to the Commons: " + (await cmd("place " + world(to[0], to[1], 0.05).map((v) => v.toFixed(2)).join(" "))));
+    await sleep(1000);
+    const ref = dbg().refPos(slot);
+    const pageThinks = dbg().here();
+    const secs = (Date.now() - t0) / 1000;
+    check(!!ref && dist2(ref, to) > 3 && dist2(ref, here) <= 4.6 * secs + 8.5 + 0.5 && pageThinks && dist2(pageThinks, to) < 1.5,
+      "a jump the page did not make is not taken by the referee (its own position follows at most at a run)",
+      `page at ${fmt(pageThinks || [])}, referee's position ${fmt(ref || [])}, ${dist2(ref || here, here).toFixed(1)} m from the start after ${secs.toFixed(1)} s`);
+    say("INFO", "back: " + (await cmd("place " + back.map((v) => v.toFixed(2)).join(" "))));
+    const caught = await until(() => {
+      const r = dbg().refPos(slot);
+      return r && dist2(r, here) < 0.5;
+    }, 10000, 250);
+    check(!!caught, "put back where it was, the referee's position comes back to the person", fmt(dbg().refPos(slot) || []));
+  }
+
   // ---- rung 3: one person and five bots ---------------------------------------------------------------------------
 
+  let faultPanel = "";
   async function single() {
     if (!(await waitStarted())) return;
     await sleep(2000);
@@ -315,14 +344,20 @@
             check(Math.abs(num(pfill)[0] - want) < 0.02, "the personal panel's jobs bar shows it too", pfill);
             await shot("console", world(pick.job.x, pick.job.y - 2.5, 1.7), world(pick.job.x, pick.job.y, 1.1), 70);
           }
+          await jumpNotTaken(slot);
         }
       }
 
       // wait for a downed bot, then raise the alarm at it
       if (!seen.has("raising the alarm at a downed bot calls a muster")) {
+        let maxCt = m().ct;
+        let dropped = "";
         const body = await until(() => {
           const x = m();
           if (x.st !== ST.Playing) return null;
+          if (x.ct < maxCt && !x.sd.some((v) => v === 1)) dropped = `${maxCt} -> ${x.ct}`;
+          maxCt = Math.max(maxCt, x.ct);
+          if (x.fk && !faultPanel && x.al[slot] === 1) faultPanel = dbg().hud().panel;
           for (let i = 0; i < x.sl.length; i++) if (x.sl[i].b && x.bd[i] && x.rp[i] === 1) return { slot: i, at: x.bd[i] };
           return null;
         }, 150000, 500);
@@ -330,7 +365,7 @@
           say("INFO", "the person was eliminated by the saboteur bot before finding a body");
           const lounge = dbg().moves().filter((v) => v.why === "lounge").pop();
           const w2 = await where();
-          check(!!lounge && w2.feet[1] < -60, "an eliminated player is sent to the observer lounge, 70 m down", w2.text);
+          check(!!lounge && w2.feet[1] < -60, "an eliminated player is sent to the bunkroom, 70 m down", w2.text);
           await nextMatch();
           continue;
         }
@@ -340,6 +375,10 @@
           continue;
         }
         say("INFO", `${m().sl[body.slot].n} is down at ${fmt(body.at)}`);
+        if (m().sd[body.slot] !== 1) {
+          const hubLine = (await probe("text", path("hubText"))).split("\n").find((l) => l.indexOf("Jobs done") === 0) || "";
+          check(!dropped && hubLine.endsWith(`/ ${maxCt}`), "a downed bot's jobs stay in the hub board's total until the death is seen", `${hubLine}, highest total ${maxCt}${dropped ? ", dropped " + dropped : ""}`);
+        }
         const reach = await walkTo(body.at[0], body.at[1], 1.0, "to the body");
         if (m().st !== ST.Playing || m().al[slot] !== 1) {
           await nextMatch();
@@ -383,6 +422,9 @@
         break;
       }
     }
+    if (faultPanel) {
+      check(!/^(N|NE|E|SE|S|SW|W|NW|here) .+\((Hold|Tap|Timing)\)/m.test(faultPanel), "during a fault the job list gives no directions (upstream hid its pointer)", faultPanel.split("\n").slice(0, 6).join(" / "));
+    } else say("INFO", "no fault ran while the person was alive: the directions check is the Node test's only");
     await stats("end");
     await shot("station", world(-30, -20, 2.2), world(-45, -18, 1.0), 75);
   }
@@ -423,7 +465,7 @@
     const tryWalk = await cmd("walk " + (w.feet[0] + 1).toFixed(2) + " " + w.feet[2].toFixed(2) + " 3", 10000);
     check(tryWalk.indexOf("movement locked") >= 0, "players stand still in the ring (movement locked)", tryWalk);
     const board = await probe("text", path("musterText"));
-    check(board.indexOf(bodySlot >= 0 ? "ALARM" : "MUSTER") === 0, "the muster board says why and who", board.split("\n").slice(0, 2).join(" / "));
+    check(bodySlot >= 0 ? board.indexOf(" sounded the alarm over ") > 0 : board.indexOf("MUSTER") === 0, "the muster board says why and who", board.split("\n").slice(0, 2).join(" / "));
     await shot("muster", [w.feet[0], w.feet[1] + 1.7, w.feet[2]], [post[0], post[1] + 2.2, post[2]], 70);
     // vote for a living bot that is not the saboteur (Bot 1), so the match goes on
     const x = m();
@@ -432,7 +474,7 @@
     const label = target >= 0 ? await probe("text", path("voteLabel" + target)) : "";
     check(target >= 0 && label === x.sl[target].n, "the muster board's buttons name the living", `button ${target}: '${label}'`);
     if (target >= 0) await clickKey("vote" + target, "vote for " + x.sl[target].n);
-    else await clickKey("abstainButton", "Abstain");
+    else await clickKey("abstainButton", "Pass");
     const votesBefore = musterVotes;
     const voted = await until(() => m().vo[slot] === 1 || dbg().events("vote").filter((e) => e.actor === slot).length > votesBefore, 5000);
     musterVotes = dbg().events("vote").filter((e) => e.actor === slot).length;
@@ -557,7 +599,7 @@
     send({ kind: "ring", r });
     const other = await hear("ring");
     check(!!other && Math.abs(other.r - 2.8) < 0.4, "and the other player too (a muster moves both)", other ? other.r.toFixed(2) + " m" : "nothing heard");
-    await clickKey("abstainButton", "Abstain");
+    await clickKey("abstainButton", "Pass");
     await until(() => m().vo[slot] === 1, 5000);
     await until(() => m().st !== ST.Muster, 40000);
     await sleep(1500);
@@ -635,8 +677,20 @@
     const w = await where();
     const panel = await probe("text", path("panelText"));
     const loungeText = await probe("text", path("loungeText"));
-    check(!!lounge && w.feet[1] < -60, "a late joiner is sent to the observer lounge, 70 m down", w.text);
-    check(panel.indexOf("Observing") === 0 && loungeText.indexOf("Observer lounge") === 0, "the late joiner's panel and the lounge board say so", `${panel.split("\n")[0]} / ${loungeText.split("\n")[1] || ""}`);
+    check(!!lounge && w.feet[1] < -60, "a late joiner is sent to the bunkroom, 70 m down", w.text);
+    check(panel.indexOf("Observing") === 0 && loungeText.indexOf("Off-shift bunkroom") === 0 && loungeText.indexOf("Leave opens when the match ends") > 0, "the late joiner's panel and the bunkroom board say so", `${panel.split("\n")[0]} / ${loungeText.split("\n").slice(1, 3).join(" / ")}`);
+    // D13: nobody but the living within earshot while the match runs
+    const movesBefore = dbg().moves().length;
+    await clickKey("loungeLeaveButton", "Leave (bunkroom board)");
+    await sleep(1500);
+    const w3 = await where();
+    check(dbg().moves().length === movesBefore && w3.feet[1] < -60, "Leave is refused while the match runs", `moves ${JSON.stringify(dbg().moves().slice(movesBefore))}, Unity feet ${w3.text}`);
+    const pad = world(6, -57.6, 0.05);
+    say("INFO", "arrives at the boarding pad: " + (await cmd("place " + pad.map((v) => v.toFixed(2)).join(" "))));
+    const sentBack = await until(() => dbg().moves().length > movesBefore, 3000, 100);
+    await sleep(800);
+    const w4 = await where();
+    check(!!sentBack && w4.feet[1] < -60, "an onlooker who reaches the boarding pad is sent back to the bunkroom at once", `${w4.text} moves ${JSON.stringify(dbg().moves().slice(movesBefore))}`);
     check(dbg().mine() === null || dbg().mine().n !== m().r, "the late joiner holds no sealed entry of the match", JSON.stringify(dbg().mine()));
     send({ kind: "back", lounge: !!lounge && w.feet[1] < -60, r: m().r, t0: m().t0, roster: m().sl.map((x) => x.n).join(",") });
     await until(() => m().st === ST.Lobby, 60000, 250);

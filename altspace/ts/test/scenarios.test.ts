@@ -324,7 +324,7 @@ test("a change of referee mid-match voids it: everyone back to the lobby, free, 
   assert.deepEqual(world.problems(), []);
 });
 
-test("a player who arrives mid-match is an observer: sent to the lounge, no beats, no role", async () => {
+test("a player who arrives mid-match is an observer: sent to the bunkroom, no beats, no role", async () => {
   const world = newWorld(37);
   const t = await startMatch(world, 4);
   await runCrowd(world, t.drivers, () => false, 5000);

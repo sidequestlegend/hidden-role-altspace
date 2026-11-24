@@ -22,8 +22,9 @@ const game: GameDefinition = {
 
 /**
  * Readers for the Play-mode tests (window.__pk1.debug["hidden-role:<inst>"]). Everything here is this page's own view:
- * the public match, the local player's own sealed entry, the boards' texts. `force` is the rules' test aid (the
- * referee's page only; the Node tests use it the same way).
+ * the public match, the local player's own sealed entry, the boards' texts. `force` is the rules' test aid and `refPos`
+ * the referee's own position of a player (the referee's page only; the Node tests use them the same way). portkit puts
+ * these on a test page only (`window.__pk1_debug`): a published page has none of them (fixpass test 4).
  */
 function debugHooks(instance: GameInstance): Record<string, unknown> {
   const hud = () => instance.behaviour<RuntimeHud>("hud");
@@ -78,6 +79,11 @@ function debugHooks(instance: GameInstance): Record<string, unknown> {
     },
     pathOf: (key: string) => instance.bindings.objects[key]?.path ?? null,
     isReferee: () => match().Networking.IsReferee,
+    /** The referee's own position for a roster slot (the referee's page only; null elsewhere): PORT.md D12. */
+    refPos: (slot: number) => {
+      const p = match().rules?.players[slot]?.position;
+      return p ? [p.x, p.y] : null;
+    },
     force: (uids: string[] | null) => {
       match().forcedSaboteurs = uids;
       return match().Networking.IsReferee;

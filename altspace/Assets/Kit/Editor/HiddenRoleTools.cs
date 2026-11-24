@@ -43,7 +43,13 @@ namespace HiddenRole
 
         static string F(float v) => v.ToString("F2", CultureInfo.InvariantCulture);
 
-        static Transform Player() => BS.BSDesktopController.Instance != null ? BS.BSDesktopController.Instance.transform : null;
+        /// <summary>The SDK's desktop player (BS.BSDesktopController.Instance), found by name so this file needs no SDK reference.</summary>
+        static Transform Player()
+        {
+            var type = GraphTypes.Find("BS.BSDesktopController");
+            var instance = type?.GetProperty("Instance", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null) as Component;
+            return instance != null ? instance.transform : null;
+        }
 
         static string Where()
         {

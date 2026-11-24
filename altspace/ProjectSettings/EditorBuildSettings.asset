@@ -4,6 +4,10 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
-  m_configObjects: {}
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/Showcase.unity
+    guid: 3ec53c18328a6bc4cb7805d5b273d116
+  m_configObjects:
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 0e7dc0f882d32484e911b877512b6bf6, type: 2}
   m_UseUCBPForAssetBundles: 0

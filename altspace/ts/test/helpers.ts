@@ -1,5 +1,5 @@
 // Test helpers: people in a fake room with the game on their pages, driven the way a person drives it. A Driver
-// walks its client's head through the station (pose updates, at most 6 m/s, along the map's own steering points),
+// walks its client's head through the station (pose updates, at most WALK_SPEED, along the map's own steering points),
 // follows the teleports the game makes, and presses keys; its autopilot works the player's own jobs, read from the
 // player's own sealed entry, exactly as a person reading the panel would.
 //
@@ -23,6 +23,8 @@ import { Dist, STATION } from "../src/ShipMap.ts";
 export const bindings = JSON.parse(readFileSync(fileURLToPath(new URL("../bindings.json", import.meta.url)), "utf8"));
 export const SLUG = game.slug;
 export const STEP_MS = 100;
+/** A person at a run (the app: 3.25 m/s walking, 1.4 times that running); the referee follows up to 4.6 m/s. */
+export const WALK_SPEED = 4.2;
 
 export function newWorld(seed = 1): TestWorld {
   return new TestWorld(game, bindings, { seed });
@@ -56,6 +58,8 @@ export class Driver {
   readonly c: FakeClient;
   readonly inst: string;
   pos = new Vector2(0, 0);
+  /** Feet height above the station floor (the lounge is 70 m below it); the head is 1.6 m above the feet. */
+  lift = 0;
   private seenTeleports = 0;
   private plan: Array<() => boolean> = [];
   private held = new Set<string>();
@@ -94,22 +98,29 @@ export class Driver {
   }
 
   /** Puts the head at a map point (as a person walking there would report it). */
-  place(at: Vector2): void {
+  place(at: Vector2, lift = 0): void {
     this.pos = at.clone();
-    this.c.pose(this.hud.ToWorld(this.pos, 1.6));
+    this.lift = lift;
+    this.c.pose(this.head());
+  }
+
+  /** The head in the world, where this person stands now. */
+  head(): Vector3 {
+    return this.hud.ToWorld(this.pos, this.lift + 1.6);
   }
 
   private followTeleports(): void {
     while (this.seenTeleports < this.c.teleports.length) {
       const t = this.c.teleports[this.seenTeleports++]!;
       this.pos = this.hud.ToMap(t.position);
+      this.lift = t.position.y - this.hud.ToWorld(this.pos, 0).y;
       this.steer = null;
     }
   }
 
   key(key: string, down: boolean): void {
     // The page hears the key where the head is now.
-    this.c.pose(this.hud.ToWorld(this.pos, 1.6));
+    this.c.pose(this.head());
     if (down) this.held.add(key);
     else this.held.delete(key);
     this.c.input({ type: "key", key, pressed: down });
@@ -180,7 +191,7 @@ export class Driver {
       this.plan.shift();
     }
     if (this.plan.length === 0) this.autopilot();
-    this.c.pose(this.hud.ToWorld(this.pos, 1.6));
+    this.c.pose(this.head());
   }
 
   private walk(target: Vector2, within: number): boolean {
@@ -192,7 +203,7 @@ export class Driver {
       this.steer = { goal: target.clone(), point: STATION.NextStep(this.pos, target, 0.3), at: now };
     }
     const d = this.steer.point.sub(this.pos);
-    const stepLen = Math.min(d.magnitude, 6 * (STEP_MS / 1000));
+    const stepLen = Math.min(d.magnitude, WALK_SPEED * (STEP_MS / 1000));
     const move = d.magnitude > 0 ? d.normalized.scale(stepLen) : Vector2.zero;
     const before = this.pos.clone();
     this.pos = STATION.MoveToward(this.pos, move, 0.3);

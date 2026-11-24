@@ -40,8 +40,12 @@ namespace PortKit
             using (var sha = SHA1.Create()) return string.Concat(sha.ComputeHash(data).Select(b => b.ToString("x2")));
         }
 
-        /// <summary>The box around everything the kit draws, in the kit's own axes (the kit at the origin, unturned).</summary>
-        public static Bounds Footprint(GameObject prefab)
+        /// <summary>
+        /// The box around everything the kit draws, in the kit's own axes (the kit at the origin, unturned). Objects the
+        /// bindings write "active": false (saved on only so that the page can find them; the runtime switches them off) and
+        /// particle systems (their bounds are the whole emission volume, not what is seen) do not count.
+        /// </summary>
+        public static Bounds Footprint(GameObject prefab, KitBuilder kit = null)
         {
             var scene = EditorSceneManager.NewPreviewScene();
             try
@@ -49,16 +53,52 @@ namespace PortKit
                 var copy = UnityEngine.Object.Instantiate(prefab);
                 SceneManager.MoveGameObjectToScene(copy, scene);
                 copy.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-                var bounds = new Bounds();
-                bool any = false;
-                foreach (var r in copy.GetComponentsInChildren<Renderer>(false))
-                {
-                    if (!any) { bounds = r.bounds; any = true; }
-                    else bounds.Encapsulate(r.bounds);
-                }
-                return bounds;
+                if (kit != null) SwitchOffInactive(kit, copy);
+                return Drawn(copy).bounds;
             }
             finally { EditorSceneManager.ClosePreviewScene(scene); }
+        }
+
+        /// <summary>Switches off, in a copy of the kit, the bound objects its bindings write "active": false. Returns how many.</summary>
+        public static int SwitchOffInactive(KitBuilder kit, GameObject copy)
+        {
+            if (!File.Exists(kit.BindingsPath)) return 0;
+            int n = 0;
+            var objects = JObject.Parse(File.ReadAllText(kit.BindingsPath))["objects"] as JObject;
+            foreach (var p in objects?.Properties() ?? Enumerable.Empty<JProperty>())
+            {
+                if (p.Value["active"] == null || (bool)p.Value["active"]) continue;
+                var t = Find(copy.transform, (string)p.Value["path"]);
+                if (t != null) { t.gameObject.SetActive(false); n++; }
+            }
+            return n;
+        }
+
+        /// <summary>The object at `path` under `root` ("" is the root), or null.</summary>
+        public static Transform Find(Transform root, string path)
+        {
+            var at = root;
+            if (string.IsNullOrEmpty(path)) return at;
+            foreach (var name in path.Split('/'))
+            {
+                at = at.Cast<Transform>().FirstOrDefault(c => c.name == name);
+                if (at == null) return null;
+            }
+            return at;
+        }
+
+        /// <summary>The box around the renderers under `root` that are on and are not particle systems, and how many there were.</summary>
+        public static (Bounds bounds, int count) Drawn(GameObject root)
+        {
+            var bounds = new Bounds();
+            int count = 0;
+            foreach (var r in root.GetComponentsInChildren<Renderer>(false))
+            {
+                if (!r.enabled || r is ParticleSystemRenderer || r is TrailRenderer) continue;
+                if (count++ == 0) bounds = r.bounds;
+                else bounds.Encapsulate(r.bounds);
+            }
+            return (bounds, count);
         }
 
         static string Xml(string text) => SecurityElement.Escape(text ?? "");
@@ -72,7 +112,8 @@ namespace PortKit
         {
             float wide = 2f * Mathf.Max(Mathf.Abs(footprint.min.x), Mathf.Abs(footprint.max.x));
             float deep = 2f * Mathf.Max(Mathf.Abs(footprint.min.z), Mathf.Abs(footprint.max.z));
-            string size = $"{wide.ToString("F1", CultureInfo.InvariantCulture)} 0.2 {deep.ToString("F1", CultureInfo.InvariantCulture)}";
+            string size = !string.IsNullOrWhiteSpace(kit.GizmoSize) ? kit.GizmoSize.Trim()
+                : $"{wide.ToString("F1", CultureInfo.InvariantCulture)} 0.2 {deep.ToString("F1", CultureInfo.InvariantCulture)}";
             return $"<bs-snippet name=\"{kit.Slug}\" title=\"{Xml(kit.Title)}\"{(kit.Single ? " single=\"true\"" : "")}\n" +
                    $"  description=\"{Xml(kit.Summary)}\"\n" +
                    $"  script=\"{ScriptPlaceholder}\"\n" +
@@ -80,7 +121,8 @@ namespace PortKit
                    "  rotation=\"0 0 0\"" +
                    string.Concat(kit.SnippetSettings.Select(s => $"\n  {s.name}=\"{Xml(s.value)}\"")) + ">\n" +
                    "  <bs-gizmo type=\"position\" attribute=\"position\"/>\n" +
-                   $"  <bs-gizmo type=\"box\" attribute=\"position\" size=\"{size}\"/>\n" +
+                   $"  <bs-gizmo type=\"box\" attribute=\"position\" size=\"{Xml(size)}\"/>\n" +
+                   string.Concat(kit.SnippetGizmos.Where(line => !string.IsNullOrWhiteSpace(line)).Select(line => "  " + line.Trim() + "\n")) +
                    "</bs-snippet>\n";
         }
 
@@ -102,13 +144,20 @@ namespace PortKit
                 {
                     var copy = UnityEngine.Object.Instantiate(prefab);
                     SceneManager.MoveGameObjectToScene(copy, scene);
-                    var bounds = new Bounds();
-                    bool any = false;
-                    foreach (var r in copy.GetComponentsInChildren<Renderer>(false))
+                    copy.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                    // what the page would switch off at once is not in the picture, nor particle volumes
+                    int hidden = SwitchOffInactive(kit, copy);
+                    // only the part the builder names (PhotoRoot): everything outside it is hidden
+                    var shown = copy.transform;
+                    if (kit.PhotoRoot != null)
                     {
-                        if (!any) { bounds = r.bounds; any = true; }
-                        else bounds.Encapsulate(r.bounds);
+                        shown = Find(copy.transform, kit.PhotoRoot) ?? throw new Exception($"PhotoRoot '{kit.PhotoRoot}' is not a path in the kit");
+                        foreach (var r in copy.GetComponentsInChildren<Renderer>(true))
+                            if (!r.transform.IsChildOf(shown)) r.enabled = false;
                     }
+                    var (bounds, drawn) = Drawn(shown.gameObject);
+                    if (kit.PhotoBounds.HasValue) bounds = kit.PhotoBounds.Value;     // the kit is at the origin, unturned: its axes are the world's
+                    if (drawn == 0 && !kit.PhotoBounds.HasValue) throw new Exception("nothing to photograph (no renderer on)");
                     var sun = new GameObject("Sun");
                     SceneManager.MoveGameObjectToScene(sun, scene);
                     var light = sun.AddComponent<Light>();
@@ -137,7 +186,8 @@ namespace PortKit
                     RenderTexture.active = null;
                     cam.targetTexture = null;
                     File.WriteAllBytes(PhotoPath(kit.Slug), tex.EncodeToJPG(90));
-                    report.AppendLine($"photo {kit.Slug}: size {bounds.size:F2}, camera {reach:F1} m away -> {PhotoPath(kit.Slug)}");
+                    report.AppendLine($"photo {kit.Slug}: {(kit.PhotoRoot != null ? $"'{kit.PhotoRoot}' only, " : "")}{(kit.PhotoBounds.HasValue ? "PhotoBounds, " : "")}" +
+                                      $"{drawn} renderers ({hidden} bound objects off), size {bounds.size:F2}, camera {reach:F1} m away -> {PhotoPath(kit.Slug)}");
                 }
                 catch (Exception e) { report.AppendLine($"FAILED {kit.Slug}: {e.Message}"); }
                 finally
@@ -169,7 +219,7 @@ namespace PortKit
                 {
                     var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(kit.PrefabPath);
                     if (prefab == null) { report.AppendLine($"FAILED {kit.Slug}: no prefab"); ok = false; continue; }
-                    var footprint = Footprint(prefab);
+                    var footprint = Footprint(prefab, kit);
                     var files = new JObject();
                     var checks = new JObject();
                     var missing = new List<string>();

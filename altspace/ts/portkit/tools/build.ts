@@ -74,6 +74,11 @@ export async function buildGame(options: BuildOptions): Promise<BuildResult> {
     if (/[^\x09\x0a\x20-\x7e]/.test(text)) throw new Error(`${headerPath} must be plain ASCII (the script is written as ASCII)`);
     header = "/*!\n" + text.split("\n").map((line) => (" * " + line).trimEnd()).join("\n") + "\n */\n";
   }
+  // The runtime bundled into the script is portkit's, under the MIT licence, whose notice goes with every copy.
+  const licencePath = join(portkit, "LICENSE");
+  if (!existsSync(licencePath)) throw new Error(`${licencePath} is missing: the built script must carry portkit's licence`);
+  const licence = readFileSync(licencePath, "utf8").replace(/\r\n/g, "\n").trim();
+  header += "/*! The portkit runtime in this file:\n" + licence.split("\n").map((line) => (" * " + line).trimEnd()).join("\n") + "\n */\n";
 
   const outDir = resolve(cwd(), options.out ?? join(game === join(portkit, "sample") ? portkit : game, "dist"));
   mkdirSync(outDir, { recursive: true });

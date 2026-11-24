@@ -154,7 +154,7 @@ test("a report and a muster: the alarm on a body, the ring, abstentions, the way
   assert.equal(m.mr, finder!.slot);
   assert.equal(m.mb, victim!.slot);
   assert.equal(m.rp[victim!.slot], 0, "a reported body is not reportable again");
-  assert.match(hud(world, t.people[3]!).texts.muster, /ALARM: P3 found P2 down/);
+  assert.match(hud(world, t.people[3]!).texts.muster, /P3 sounded the alarm over P2/);
   assert.match(hud(world, t.people[3]!).texts.hub, /P2: down/, "at a muster everyone sees who is down (D4)");
   assert.ok(!m.ring.includes(victim!.slot), "the downed stay in the lounge");
   await runCrowd(world, t.drivers, () => false, 500);
@@ -191,6 +191,10 @@ test("faults: blackout on living technicians only, a reset at the panel, the jam
   await runCrowd(world, t.drivers, () => false, 300);
   assert.equal(hud(world, tech!.c).BlackoutOn, true, "a living technician's view closes in");
   assert.equal(hud(world, sab!.c).BlackoutOn, false, "the saboteur keeps the full view");
+  // Upstream hid the pointer to the nearest job during a fault (F35): no compass word on the job lines then.
+  const directed = /^(N|NE|E|SE|S|SW|W|NW|here) .+\((Hold|Tap|Timing)\)/m;
+  assert.doesNotMatch(hud(world, tech!.c).texts.panel, directed, "no job directions during a fault");
+  assert.match(hud(world, tech!.c).texts.panel, /\((Hold|Tap|Timing)\)/, "the jobs are still listed");
   assert.match(hud(world, t.people[3]!).texts.hub, /FAULT: Blackout/);
   // The saboteur cannot reset; a technician holds Use at the panel for 2 s.
   sab!.hold("E", 2.5);
@@ -205,6 +209,7 @@ test("faults: blackout on living technicians only, a reset at the panel, the jam
   // The app sends state in batches every 0.2 s: give the other pages a moment to hear it.
   await runCrowd(world, t.drivers, () => false, 800);
   assert.equal(hud(world, tech!.c).BlackoutOn, false);
+  assert.match(hud(world, tech!.c).texts.panel, directed, "the directions are back once the fault is reset");
   // The next fault waits out the 18 s cooldown. The sonar jam then blocks jobs.
   const reset = history(world).find((e) => e.kind === "reset")!;
   sab!.go(panel(Fault.Jam), 0.5).then(() => match(world, t.people[0]!).Rel() > startedAt + 18.5).press("F");
@@ -255,9 +260,9 @@ test("hatches: a saboteur at a hatch comes out at the next of its group; a techn
   assert.ok(Dist(tech!.pos, STATION.Hatches[3]!.Position) < 0.6, "the technician stayed put");
   const h = history(world).filter((e) => e.kind === "hatch");
   assert.equal(h.length, 1, "the referee accepted one trip");
-  // The saboteur's beats after the trip are trusted at once: an elimination from there is not held back.
+  // The trip is taken at once: the referee's own position is at the landing, not walking there.
   const rules = match(world, referee(world)!).rules!;
-  assert.ok(rules.players[sab!.slot]!.unsettledUntil < rules.time, `the jump was sanctioned (${rules.players[sab!.slot]!.unsettledUntil - rules.startedAt} ${rules.time - rules.startedAt} ${JSON.stringify(history(world))})`);
+  assert.ok(Dist(rules.players[sab!.slot]!.position, next.Position) < 0.6, `the referee's position is at the landing: ${rules.players[sab!.slot]!.position}`);
   assert.deepEqual(world.problems(), []);
 });
 
@@ -331,7 +336,7 @@ test("a player who arrives mid-match is an observer: sent to the lounge, no beat
   await runCrowd(world, t.drivers, () => hud(world, late).moves.some((mv) => mv.why === "lounge"), 10000);
   assert.ok(hud(world, late).moves.some((mv) => mv.why === "lounge"), "kept out of the station");
   assert.match(hud(world, late).texts.panel, /Observing/);
-  assert.match(hud(world, late).texts.lounge, /Observer lounge/);
+  assert.match(hud(world, late).texts.lounge, /Off-shift bunkroom/);
   assert.equal(match(world, late).SlotOf("0-u9"), -1);
   assert.equal(world.room.userStateOf(late.sid)[`pk1.${SLUG}.0.p0`], undefined, "they send no beats");
   // Joining the lobby now queues them for the next match.
@@ -390,23 +395,6 @@ test("a reload mid-match keeps the seat: same role, same jobs, input counted aga
   const drivers = [...t.drivers.filter((x) => x !== tech), d];
   const done = after.c;
   assert.ok(await runCrowd(world, drivers, () => (hud(world, again).Mine()!.c & ~done) !== 0, 90000), "another job finished after the reload");
-});
-
-test("a position that jumps where no walk could go is not trusted for 1.5 s (C11)", async () => {
-  const world = newWorld(47);
-  const t = await startMatch(world, 4, { forced: ["0-u1"] });
-  const [sab, victim] = t.drivers;
-  victim!.go(new Vector2(-6, -4), 0.3);
-  await runCrowd(world, t.drivers, () => victim!.idle, 60000);
-  await runCrowd(world, t.drivers, () => match(world, t.people[0]!).Rel() > 11, 20000);
-  // The saboteur's head appears next to the victim from across the station and strikes at once: refused.
-  sab!.place(victim!.pos.add(new Vector2(0.8, 0)));
-  sab!.tapKey("Q");
-  await runCrowd(world, t.drivers, () => false, 1000);
-  assert.equal(victim!.alive, true, "the elimination right after the jump was refused");
-  await runCrowd(world, t.drivers, () => false, 1200);
-  sab!.tapKey("Q");
-  assert.ok(await runCrowd(world, t.drivers, () => !victim!.alive, 3000), "allowed once the position has settled");
 });
 
 test("one person and five bots play a whole match: the bots work, hunt, fault and vote (upstream bots, as an option)", async () => {

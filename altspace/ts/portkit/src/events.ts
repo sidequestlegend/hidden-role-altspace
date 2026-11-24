@@ -10,6 +10,12 @@
 // in batches every 0.2 s), so an event from the owner carries the mark of the owner's latest write and each
 // receiver holds the event until it has that write.
 //
+// One action goes out as one batch: an event is not sent at the moment the handler asks, but once the handler (the
+// whole synchronous turn) has returned. Then every slot this client owns and changed is written once, and the events
+// follow, each with the mark of that write. (Sending at once wrote the state as it stood mid-handler, and the rest of
+// the handler's writes a tick later: chess sent a sound before _EndTurn(), and a spectator's click in between let White
+// move twice.)
+//
 // The room stamps every one-shot with its sender's session, and the method can read who that was
 // (Networking.CallingPlayer): upstream code checks no sender, and a port must before it honours a request that
 // not everybody may make.
@@ -54,6 +60,9 @@ export class NetEvents {
   received = 0;
   /** Requests naming a method that may not be called from the network, for tests and diagnostics. */
   refusedCount = 0;
+  /** Events asked for in this turn, sent after it (with the state the whole turn wrote). */
+  private outbox: Array<{ behaviour: Behaviour; name: string; fields: Record<string, unknown>; slot: Slot | null }> = [];
+  private draining = false;
   private readonly refusedNames = new Set<string>();
 
   constructor(core: Core, sync: Sync, routes: EventRoutes) {
@@ -78,17 +87,15 @@ export class NetEvents {
     if (args.length) fields.a = args.map(encodeValue);
     const me = this.core.me.sid;
     let ownerSid: string | null;
+    let outSlot: Slot | null = null;
     if (address.playerSid !== null) {
       fields.ps = address.playerSid;
       ownerSid = address.playerSid;
     } else {
       const slot = this.sync.slotOf(behaviour);
       ownerSid = slot ? this.sync.ownerSid(slot) : null;
-      if (slot && ownerSid === me) {
-        // Whoever receives this must first have the state it was sent after.
-        const mark = this.sync.flushOne(slot);
-        if (mark && mark.w === me) fields.s = [mark.g, mark.n];
-      }
+      // Whoever receives this must first have the state it was sent after: the mark is taken when the turn is over.
+      if (slot && ownerSid === me) outSlot = slot;
     }
     if (target === "Owner") {
       if (ownerSid === me) {
@@ -101,7 +108,35 @@ export class NetEvents {
       }
       fields.o = ownerSid;
     } else this.invoke(behaviour, name, args, me);
-    this.post(behaviour, name, fields);
+    this.outbox.push({ behaviour, name, fields, slot: outSlot });
+    if (!this.draining) {
+      this.draining = true;
+      Promise.resolve().then(() => this.drain());
+    }
+  }
+
+  /**
+   * After the turn that asked for them: the state every handler of the turn changed is written (one write per slot),
+   * then the events go, in the order they were asked for.
+   */
+  drain(): void {
+    this.draining = false;
+    if (this.core.disposed) {
+      this.outbox = [];
+      return;
+    }
+    const out = this.outbox;
+    this.outbox = [];
+    if (!out.length) return;
+    this.sync.flushDirty();
+    const me = this.core.me.sid;
+    for (const item of out) {
+      if (item.slot) {
+        const mark = this.sync.flushOne(item.slot);
+        if (mark && mark.w === me) item.fields.s = [mark.g, mark.n];
+      }
+      this.post(item.behaviour, item.name, item.fields);
+    }
   }
 
   private post(behaviour: Behaviour, name: string, fields: Record<string, unknown>): void {

@@ -191,11 +191,11 @@ test("network events carry arguments and their sender; owner events go to one cl
 
   probe(b).Broadcast("move", 3, { to: [1, 2] }, null);
   // Here at once, with the local player as sender.
-  assert.deepEqual(probe(b).pings, [{ args: ["move", 3, { to: [1, 2] }, null], from: idOf(b, "probe"), uid: "bob" }]);
+  assert.deepEqual(probe(b).pings.map(({ args, from, uid }) => ({ args, from, uid })), [{ args: ["move", 3, { to: [1, 2] }, null], from: idOf(b, "probe"), uid: "bob" }]);
   await room.run(1000);
   for (const client of [a, c]) {
     // Elsewhere once, with who sent it: session and user id, as the room stamped them.
-    assert.deepEqual(probe(client).pings, [{ args: ["move", 3, { to: [1, 2] }, null], from: idOf(b, "probe"), uid: "bob" }]);
+    assert.deepEqual(probe(client).pings.map(({ args, from, uid }) => ({ args, from, uid })), [{ args: ["move", 3, { to: [1, 2] }, null], from: idOf(b, "probe"), uid: "bob" }]);
   }
   assert.equal(probe(b).pings.length, 1, "a one-shot never comes back to its sender");
   assert.equal(inst(a, "probe").networking.CallingPlayer, null, "outside an event there is no caller");
@@ -206,7 +206,7 @@ test("network events carry arguments and their sender; owner events go to one cl
   for (const client of all) probe(client).pings.length = 0;
   probe(c).ToOwner("please");
   await room.run(1000);
-  assert.deepEqual(probe(a).pings, [{ args: ["please"], from: idOf(c, "probe"), uid: "cat" }]);
+  assert.deepEqual(probe(a).pings.map(({ args, from, uid }) => ({ args, from, uid })), [{ args: ["please"], from: idOf(c, "probe"), uid: "cat" }]);
   assert.equal(probe(b).pings.length + probe(c).pings.length, 0);
   // From the owner to the owner: run here, nothing sent.
   const sent = inst(a, "probe").events.sent;

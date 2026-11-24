@@ -39,6 +39,8 @@ export interface FakeRoomOptions {
   moderators?: string[];
   maxRoomKeys?: number;
   maxLeafBytes?: number;
+  /** RELAY.md: an inbound message over this closes the socket (1009). 256 KiB. */
+  maxMessageBytes?: number;
   /** User-state leaves the page may hold per player (the server allows 128, the app keeps 64 back). */
   maxUserKeys?: number;
   bucketRate?: number;
@@ -120,6 +122,10 @@ const SEGMENT = /^[A-Za-z0-9_\-:@]{1,64}$/;
 
 export interface RoomStats {
   stateBatches: number;
+  /** Messages over maxMessageBytes: the relay closed the sender's socket (1009). */
+  socketsClosed: number;
+  /** The largest state batch message seen, in bytes. */
+  largestBatch: number;
   rateLimited: number;
   oneShots: number;
   oneShotsDropped: number;
@@ -133,7 +139,7 @@ export class FakeRoom {
   /** Virtual milliseconds since the room was made. */
   now = 0;
   readonly rng: () => number;
-  readonly stats: RoomStats = { stateBatches: 0, rateLimited: 0, oneShots: 0, oneShotsDropped: 0, userWrites: 0, objectRequests: 0, refusedWrites: 0 };
+  readonly stats: RoomStats = { stateBatches: 0, socketsClosed: 0, largestBatch: 0, rateLimited: 0, oneShots: 0, oneShotsDropped: 0, userWrites: 0, objectRequests: 0, refusedWrites: 0 };
   readonly clients: FakeClient[] = [];
   /** A game's own relay ops the fake graph answers to (`defineRelayOp`), with what each does here. */
   readonly relayOps = new Map<string, ((record: { op: string; target: string; args: string[] }, client: FakeClient) => void) | null>();
@@ -162,6 +168,7 @@ export class FakeRoom {
       moderators: options.moderators ?? [],
       maxRoomKeys: options.maxRoomKeys ?? 2048,
       maxLeafBytes: options.maxLeafBytes ?? 16384,
+      maxMessageBytes: options.maxMessageBytes ?? 256 * 1024,
       maxUserKeys: options.maxUserKeys ?? 64,
       bucketRate: options.bucketRate ?? 20,
       bucketBurst: options.bucketBurst ?? 40,
@@ -364,6 +371,13 @@ export class FakeRoom {
   serverStateBatch(session: Session, scope: "public" | "protected", ops: StateOp[], atomic: boolean, reply: (result: StateResult) => void): void {
     this.stats.stateBatches++;
     const answer = (result: StateResult) => this.toClient(session, () => reply(result));
+    // RELAY.md 1: an inbound message over 256 KiB closes the socket with 1009 before anything in it is read
+    const bytes = utf8Length(JSON.stringify({ t: "app.state.batch", scope, atomic, ops }));
+    this.stats.largestBatch = Math.max(this.stats.largestBatch, bytes);
+    if (bytes > this.options.maxMessageBytes) {
+      this.stats.socketsClosed++;
+      return answer({ ok: false, error: "socket_closed" });
+    }
     if (!session.bucket.take(this.now)) {
       this.stats.rateLimited++;
       return answer({ ok: false, error: "rate_limited" });
@@ -922,8 +936,18 @@ class FakeApp {
       set attachmentPoint(v: number) { this.config.attachmentPoint = v; }
       set attachmentPosition(v: any) { this.config.attachmentPosition = v; }
       set attachmentRotation(v: any) { this.config.attachmentRotation = v; }
+      set autoSync(v: boolean) { this.config.autoSync = v; }
       Attach(uid: string): Promise<void> {
-        return app.bridge(() => void client.attached.set(this.gameObject!.path, { uid, point: this.config.attachmentPoint }));
+        return app.bridge(() => {
+          const object = this.gameObject!;
+          client.attached.set(object.path, this.config.autoSync ? { uid, point: this.config.attachmentPoint, autoSync: true, networkId: object.networkId } : { uid, point: this.config.attachmentPoint });
+          // Attached to the head (point 0): the app moves the object there, if this client has a head position.
+          if (this.config.attachmentPoint === 0 && client.head && uid === client.uid) {
+            const offset = this.config.attachmentPosition ?? { x: 0, y: 0, z: 0 };
+            object.truePosition = new Vector3(client.head.x + Number(offset.x || 0), client.head.y + Number(offset.y || 0), client.head.z + Number(offset.z || 0));
+            app.objectMoved(object, false);
+          }
+        });
       }
       Detach(): Promise<void> {
         return app.bridge(() => void client.attached.delete(this.gameObject!.path));
@@ -1159,6 +1183,11 @@ class FakeApp {
           this.backoff = 0;
           this.nextSendAt = this.room.now + this.sendInterval();
           if (scope === "protected") for (const t of taken) this.knownProtected.add(t.path);
+        } else if (result.error === "socket_closed") {
+          // the app reconnects and sends the same queue again: everything stays queued (and is too big again)
+          this.client.notes.push(`socket closed 1009: a state batch of ${ops.length} writes was over the relay's message limit`);
+          this.backoff = this.backoff <= 0 ? 1000 : Math.min(this.backoff * 2, 4000);
+          this.nextSendAt = this.room.now + this.backoff;
         } else if (result.error === "rate_limited") {
           // Everything stays queued; never surfaced to the page as an error.
           this.stats.rateLimited++;
@@ -1374,9 +1403,15 @@ class FakeApp {
         case "text":
           graph.text.set(target, args[0] ?? "");
           break;
-        case "active":
+        case "active": {
           graph.active.set(target, args[0] === "1");
+          // As in Unity: the object itself is switched (inactive ones included), found by path under the kit root.
+          const path = target.startsWith("@") ? target.slice(1) : kit.pathOfKey.get(target);
+          let node: FakeObject | undefined = path === undefined ? undefined : holder.children[0];
+          if (path) for (const part of path.split("/")) node = node?.children.find((c) => c.name === part);
+          if (node) node.active = args[0] === "1";
           break;
+        }
         case "animBool":
         case "animFloat":
         case "animInt":
@@ -1420,6 +1455,7 @@ class FakeApp {
         case "animPlay":
         case "particles":
         case "rbVelocity":
+        case "rbLaunch":
         case "spawn":
         case "despawn":
           graph.events.push({ op: record.op, target, args });
@@ -1473,8 +1509,13 @@ export class FakeClient {
   readonly abilities = new Map<string, boolean>();
   readonly blocks = new Map<string, boolean>();
   readonly seated = new Set<string>();
-  /** Kit objects attached to this player (BS.AttachedObject), by path: who and where (1 left hand, 2 right hand). */
-  readonly attached = new Map<string, { uid: string; point: number }>();
+  /**
+   * Where the local player's head is, for a page that asks (an object attached to the head goes there). Null by
+   * default: then nothing answers, as an app that never moves the object would. `pose()` keeps it current.
+   */
+  head: Vector3 | null = null;
+  /** Kit objects attached to this player (BS.AttachedObject), by path: who and where (0 head, 1 left hand, 2 right hand). */
+  readonly attached = new Map<string, { uid: string; point: number; autoSync?: boolean; networkId?: string }>();
   readonly runtimes = new Map<string, GameRuntime>();
   readonly platforms: BsPlatform[] = [];
   private readonly elements: FakeSnippet[] = [];
@@ -1725,7 +1766,13 @@ export class FakeClient {
   pose(poses: LocalPoses | Vector3): void {
     const at = (p: Vector3, r: Quaternion) => ({ position: { x: p.x, y: p.y, z: p.z }, rotation: { x: r.x, y: r.y, z: r.z, w: r.w } });
     const full = poses instanceof Vector3 ? { head: { position: poses, rotation: new Quaternion() }, leftHand: { position: poses, rotation: new Quaternion() }, rightHand: { position: poses, rotation: new Quaternion() } } : poses;
+    this.head = full.head.position.clone();
     this.app.scene.emit("pose-update", { head: at(full.head.position, full.head.rotation), leftHand: at(full.leftHand.position, full.leftHand.rotation), rightHand: at(full.rightHand.position, full.rightHand.rotation) });
+  }
+
+  /** The app teleported the local player (a spawn, a portal): the page hears `player-teleported`. */
+  teleported(position: Vector3, isSpawn = false): void {
+    this.app.scene.emit("player-teleported", { position: { x: position.x, y: position.y, z: position.z }, rotation: { x: 0, y: 0, z: 0 }, isSpawn });
   }
 
   /** Log lines of one level, for assertions. */

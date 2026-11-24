@@ -93,15 +93,23 @@ export interface DrawStatus {
   draw: Draw | null;
 }
 
-/** [label, hash, number, deadline in synced seconds or 0, forfeit 0 | 1, the player's user id] */
-type DrawEntry = [string, string, string, number, number, string];
+/**
+ * [label, hash, number, deadline in synced seconds or 0, forfeit 0 | 1, the player's user id, who supplied the number
+ * (a session id), how: "r" the referee that published it, "w" a witness (the referee's own draw), "s" solo (nobody else)]
+ */
+type DrawEntry = [string, string, string, number, number, string, string, string];
+
+/** Whether a table entry may be believed: checked when this client first sees it (see entryOf). */
+type Verdict = "ok" | "pending" | "bad";
 
 /** How long the referee keeps the entry of a player who left, for a page reload to pick it up again. */
 const DRAW_KEEP_MS = 120000;
+/** How many first answers (user and label) the referee remembers per epoch, to refuse a re-roll after DRAW_KEEP_MS. */
+const ANSWERED_MAX = 1024;
 
 function parseDrawEntry(e: unknown): DrawEntry | null {
   if (!Array.isArray(e) || typeof e[0] !== "string" || typeof e[1] !== "string" || typeof e[2] !== "string") return null;
-  return [e[0], e[1], e[2], typeof e[3] === "number" ? e[3] : 0, e[4] === 1 ? 1 : 0, typeof e[5] === "string" ? e[5] : ""];
+  return [e[0], e[1], e[2], typeof e[3] === "number" ? e[3] : 0, e[4] === 1 ? 1 : 0, typeof e[5] === "string" ? e[5] : "", typeof e[6] === "string" ? e[6] : "", typeof e[7] === "string" ? e[7] : ""];
 }
 
 const CURVE = { name: "ECDH", namedCurve: "P-256" };
@@ -159,13 +167,27 @@ export class Secrets {
   private readonly lastStates = new Map<string, string>();
   /** The referee's numbers and judgements, read from the referee's own user state. */
   private readonly numbers: RefereeTable<DrawEntry>;
-  private readonly pins = new Map<string, [string, string]>();
+  /** Per `<uid>\n<label>`: the hash and number first seen, and whether the entry checked out when it appeared. */
+  private readonly pins = new Map<string, { h: string; n: string; verdict: Verdict; live: boolean; publisher: string }>();
+  /** Witness answers seen this epoch: `<witness sid>\n<drawer uid>\n<label>\n<hash>` -> number (the first one stays). */
+  private readonly answers = new Map<string, string>();
+  /** The first commitment seen per `<uid>\n<label>` this epoch (a referee may not re-commit after its witness answered). */
+  private readonly firstCommit = new Map<string, string>();
+  /** Entries already in the first table this client read this epoch: numbered before it was here, so taken as found. */
+  private baseline: Set<string> | null = null;
   private pinsEpoch = -1;
   private readonly warnedPins = new Set<string>();
   private readonly goneSince = new Map<string, number>();
+  /** Witness only: the commitment answered per `<epoch>\n<referee uid>\n<label>`. */
+  private readonly witnessed = new Map<string, string>();
+  /** Referee only: the first entry answered per `<uid>\n<label>` in `answeredEpoch` (see officiate). */
+  private readonly answered = new Map<string, DrawEntry>();
+  private answeredEpoch = -1;
   private drawStore: KeyValueStore | null = null;
   private drawKey = "";
   private restoring: { e: number; l: string; s: string; r: number } | null = null;
+  /** The draw the restore brought back, until the game's first beginDraw (which keeps it under the same label). */
+  private restored: { e: number; l: string; s: string; r: number } | null = null;
   /** The referee's own seed for its current deal. */
   private dealSeed: { label: string; seed: string } | null = null;
   /** This player's contribution to a deal. */
@@ -248,17 +270,41 @@ export class Secrets {
   //   x.fr  [label, secret]        the player's reveal, in the player's own user state
   //   x.fn  {e, m: {sid: entry}}   the referee's numbers and judgements, in the referee's own user state
   //                                (refrecord.ts); entry = [label, hash, number, deadline, forfeit, uid]
+  //   x.fw  [drawer uid, label, hash, number]   a witness's answer to the referee's own commitment, in the witness's
+  //                                user state: the referee never supplies the number of its own draw (it knows its secret,
+  //                                and could search secrets or numbers until it liked the outcome)
   // Each client also keeps the first hash and number it saw for a player's label in this epoch (`pins`): a later
-  // table that changes them (a referee seat taken over by a modified client) is not believed.
+  // table that changes them (a referee seat taken over by a modified client) is not believed. An entry that appears
+  // while this client is here is checked when it appears: numbered by the referee publishing it ("r", for another
+  // player), or by that player's witness ("w": the number is the witness's published answer to the first commitment
+  // seen), or "s" (solo: believed only while nobody else takes part). Entries already there when this client first read
+  // the table were numbered before it came, and are taken as found.
 
   /** Starts a draw for the local player under `label` (a round name). It replaces their previous draw. */
   beginDraw(label: string): void {
-    const secret = toBase64(this.crypto.getRandomValues(new Uint8Array(16)));
+    // After a page reload the secret this device saved for the same label is used again (whether or not the
+    // referee's table has been read yet): a new secret under a label the player already holds is refused as a
+    // re-roll, so a game may call beginDraw as soon as it starts.
+    // The same holds when the restore has already run: the first beginDraw under the restored label keeps it.
+    const pending = this.restoring && this.restoring.l === label ? this.restoring : null;
+    const restored = !pending && this.restored && this.restored.l === label && this.mySecret?.label === label ? this.restored : null;
+    const saved = pending ?? restored;
+    this.restored = null;
+    const secret = saved ? saved.s : toBase64(this.crypto.getRandomValues(new Uint8Array(16)));
     this.mySecret = { label, secret };
     this.restoring = null;
-    this.saveDraw(false);
-    this.presence.setExtra("fr", undefined);
+    this.saveDraw(!!saved && saved.r === 1);
+    this.presence.setExtra("fr", saved && saved.r === 1 ? [label, secret] : undefined);
     this.presence.setExtra("fd", [label, sha256Text(secret)]);
+    if (pending) this.core.log("info", `the draw '${label}' came back after a reload`);
+  }
+
+  /**
+   * True while a draw this device saved before a page reload may still come back (under `label`, or any label
+   * when none is given): the restore waits for the referee's table. `beginDraw` with the same label takes it over.
+   */
+  hasSavedDraw(label?: string): boolean {
+    return !!this.restoring && (label === undefined || this.restoring.l === label);
   }
 
   /** Publishes the local player's secret for `label`, so everyone can compute and check the draw. */
@@ -286,10 +332,13 @@ export class Secrets {
 
   /** Where a participant's draw under `label` stands, and the draw itself once this client may know it. */
   drawOf(sid: string, label: string): DrawStatus {
-    const entry = this.entryOf(sid);
+    const checked = this.entryOf(sid);
     const committed = this.presence.extra(sid, "fd");
     const hasCommit = Array.isArray(committed) && committed[0] === label && typeof committed[1] === "string";
-    if (!entry || entry[0] !== label) return { state: hasCommit ? "committed" : "none", draw: null };
+    if (!checked || checked.entry[0] !== label) return { state: hasCommit ? "committed" : "none", draw: null };
+    if (checked.verdict === "bad") return { state: "rejected", draw: null };
+    if (checked.verdict === "pending") return { state: "committed", draw: null };
+    const entry = checked.entry;
     const [, hash, number, , forfeit] = entry;
     if (hasCommit && committed[1] !== hash) return { state: "rejected", draw: null };
     const revealed = this.presence.extra(sid, "fr");
@@ -310,29 +359,111 @@ export class Secrets {
     return this.drawOf(this.core.me.sid, label).draw;
   }
 
-  /** A participant's entry in the referee's table, with the hash and number this client saw first. */
-  private entryOf(sid: string): DrawEntry | null {
-    const entry = this.numbers.read()[sid];
+  /** A participant's entry in the referee's table, with the hash and number this client saw first, and whether it checks out. */
+  private entryOf(sid: string): { entry: DrawEntry; verdict: Verdict } | null {
+    const table = this.numbers.read();
+    this.newEpoch(table);
+    this.collect();
+    const entry = table[sid];
     if (!entry) return null;
-    const epoch = this.referee.epoch;
-    if (this.pinsEpoch !== epoch) {
-      this.pins.clear();
-      this.pinsEpoch = epoch;
-    }
     const key = `${entry[5]}\n${entry[0]}`;
-    const pin = this.pins.get(key);
+    let pin = this.pins.get(key);
     if (!pin) {
-      this.pins.set(key, [entry[1], entry[2]]);
-      return entry;
+      const publisher = this.referee.current()?.sid ?? "";
+      pin = { h: entry[1], n: entry[2], verdict: "pending", live: !(this.baseline?.has(key) ?? false), publisher };
+      this.pins.set(key, pin);
     }
-    if (pin[0] !== entry[1] || pin[1] !== entry[2]) {
+    if (pin.h !== entry[1] || pin.n !== entry[2]) {
       if (!this.warnedPins.has(key)) {
         this.warnedPins.add(key);
         this.core.log("warn", `the referee's table changed the pinned commitment or number of a draw (${entry[0]}); keeping the first one seen`);
       }
-      return [entry[0], pin[0], pin[1], entry[3], entry[4], entry[5]];
     }
-    return entry;
+    const kept: DrawEntry = [entry[0], pin.h, pin.n, entry[3], entry[4], entry[5], entry[6], entry[7]];
+    if (pin.verdict !== "ok" && pin.verdict !== "bad") {
+      pin.verdict = this.judge(sid, kept, pin.live, pin.publisher);
+      if (pin.verdict === "bad") this.core.log("warn", `a draw (${entry[0]}) whose number its own player could have chosen is not believed (${kept[7] || "?"} by ${kept[6] || "?"})`);
+    }
+    // solo is believed only while nobody else takes part: it is judged again every time
+    const verdict = kept[7] === "s" && pin.verdict === "ok" && this.presence.list().length > 1 ? "bad" : pin.verdict;
+    if (verdict === "bad" && pin.verdict === "ok" && !this.warnedPins.has("solo:" + key)) {
+      this.warnedPins.add("solo:" + key);
+      this.core.log("warn", `a draw (${entry[0]}) whose number its own player could have chosen is not believed (solo, while others take part)`);
+    }
+    return { entry: kept, verdict };
+  }
+
+  /** Clears what this client keeps per epoch, and takes the first table it reads as the baseline. */
+  private newEpoch(table: Record<string, DrawEntry>): void {
+    const epoch = this.referee.epoch;
+    if (this.pinsEpoch !== epoch) {
+      this.pins.clear();
+      this.answers.clear();
+      this.firstCommit.clear();
+      this.baseline = null;
+      this.pinsEpoch = epoch;
+    }
+    if (this.baseline === null && epoch !== 0) {
+      const ref = this.referee.current();
+      if (!ref) return;
+      // the referee's leaf holds no table yet: nothing has been numbered in this epoch, so everything from now on is live
+      this.baseline = new Set(Object.keys(table).map((sid) => `${table[sid]![5]}\n${table[sid]![0]}`));
+    }
+  }
+
+  /** Records every witness answer and first commitment in view (they outlive their writer's visit in this memory). */
+  private collect(): void {
+    for (const who of this.presence.list()) {
+      const fw = this.presence.extra(who.sid, "fw");
+      if (Array.isArray(fw) && fw.length >= 4 && fw.slice(0, 4).every((x) => typeof x === "string")) {
+        const key = `${who.sid}\n${fw[0]}\n${fw[1]}\n${fw[2]}`;
+        if (!this.answers.has(key)) this.answers.set(key, fw[3] as string);
+      }
+      const fd = this.presence.extra(who.sid, "fd");
+      if (Array.isArray(fd) && typeof fd[0] === "string" && typeof fd[1] === "string") {
+        const key = `${who.uid}\n${fd[0]}`;
+        if (!this.firstCommit.has(key)) this.firstCommit.set(key, fd[1]);
+      }
+    }
+  }
+
+  /** Whether an entry that appeared while this client was here was numbered by somebody other than its own player. */
+  private judge(sid: string, entry: DrawEntry, live: boolean, publisher: string): Verdict {
+    if (!live) return "ok"; // numbered before this client came: taken as found, like any pin
+    const [label, hash, number, , , uid, by, how] = entry;
+    if (how === "r") return by !== "" && by === publisher && by !== sid ? "ok" : "bad";
+    if (how === "s") return "ok"; // (and only while nobody else takes part: see entryOf)
+    if (how === "w") {
+      if (by === "" || by === sid || by === publisher) return "bad";
+      const first = this.firstCommit.get(`${uid}\n${label}`);
+      if (first !== undefined && first !== hash) return "bad"; // re-committed after the first commitment was seen
+      const answer = this.answers.get(`${by}\n${uid}\n${label}\n${hash}`);
+      if (answer !== undefined) return answer === number ? "ok" : "bad";
+      return this.presence.has(by) ? "pending" : "bad"; // a witness that left without this client seeing its answer
+    }
+    return "bad";
+  }
+
+  /**
+   * The witness's part: the lowest-ranked participant other than the referee answers the referee's commitment with a
+   * number of its own, once per label (a referee that re-commits after seeing the answer gets no second one).
+   */
+  private witness(): void {
+    const ref = this.referee.current();
+    const me = this.core.me;
+    if (!ref || ref.sid === me.sid) return;
+    const others = this.presence.list().filter((p) => p.sid !== ref.sid);
+    if (!others.length || others[0]!.sid !== me.sid) return;
+    const fd = this.presence.extra(ref.sid, "fd");
+    if (!Array.isArray(fd) || typeof fd[0] !== "string" || typeof fd[1] !== "string") return;
+    const key = `${this.referee.epoch}\n${ref.uid}\n${fd[0]}`;
+    const first = this.witnessed.get(key);
+    if (first !== undefined) return; // answered this label already (the same hash, or a re-commit that gets nothing)
+    const entry = this.numbers.read()[ref.sid];
+    if (entry && entry[0] === fd[0] && entry[5] === ref.uid) return; // numbered already
+    this.witnessed.set(key, fd[1]);
+    while (this.witnessed.size > ANSWERED_MAX) this.witnessed.delete(this.witnessed.keys().next().value as string);
+    this.presence.setExtra("fw", [ref.uid, fd[0], fd[1], toBase64(this.crypto.getRandomValues(new Uint8Array(16)))]);
   }
 
   /** Looks at every participant's draw: the referee answers and judges, and everyone reports changes. */
@@ -340,11 +471,12 @@ export class Secrets {
     if (this.core.disposed) return;
     this.reviewDeal();
     this.restoreDraw();
+    this.witness();
     if (this.referee.isMe()) this.officiate();
     for (const who of this.presence.list()) {
       const committed = this.presence.extra(who.sid, "fd");
-      const entry = this.entryOf(who.sid);
-      const label = entry ? entry[0] : Array.isArray(committed) && typeof committed[0] === "string" ? committed[0] : null;
+      const checked = this.entryOf(who.sid);
+      const label = checked ? checked.entry[0] : Array.isArray(committed) && typeof committed[0] === "string" ? committed[0] : null;
       if (label === null) continue;
       const status = this.drawOf(who.sid, label);
       const mark = `${label}\n${status.state}`;
@@ -374,6 +506,12 @@ export class Secrets {
         changed = true;
       }
     }
+    if (this.answeredEpoch !== this.referee.epoch) {
+      this.answered.clear();
+      this.answeredEpoch = this.referee.epoch;
+    }
+    // What this referee (or its predecessor, through the table it carries on from) answered first per user and label.
+    for (const sid of Object.keys(table)) this.remember(table[sid]!);
     for (const who of this.presence.list()) {
       const committed = this.presence.extra(who.sid, "fd");
       const entry = table[who.sid];
@@ -381,15 +519,40 @@ export class Secrets {
         // A new label is a new draw. The same label keeps the commitment that was answered first: a player
         // who swaps it after seeing the number gets no second number, and their reveal will not match.
         if (!entry || entry[0] !== committed[0]) {
-          const before = Object.keys(table).find((sid) => {
-            const e = table[sid]!;
-            return !this.presence.has(sid) && e[5] === who.uid && e[0] === committed[0] && e[1] === committed[1];
-          });
-          if (before !== undefined) {
-            table[who.sid] = table[before]!;
-            delete table[before];
-            this.goneSince.delete(before);
-          } else table[who.sid] = [committed[0], committed[1], toBase64(this.crypto.getRandomValues(new Uint8Array(16))), 0, 0, who.uid];
+          const label = committed[0];
+          // The same user may already hold this label under another session: a page reload (the departed session's
+          // entry), or a second page. The user keeps the commitment and number answered first. A new session that
+          // commits a different hash (a modified page re-rolling by reloading) gets that first entry, which its
+          // commitment does not match, so its draw is "rejected"; it never gets a fresh number. After the departed
+          // entry is dropped (DRAW_KEEP_MS) the referee still remembers the first answer for the rest of the epoch.
+          const holders = Object.keys(table).filter((sid) => sid !== who.sid && table[sid]![5] === who.uid && table[sid]![0] === label);
+          const departed = holders.find((sid) => !this.presence.has(sid) && table[sid]![1] === committed[1]) ?? holders.find((sid) => !this.presence.has(sid));
+          const holder = departed ?? holders[0];
+          const first = holder !== undefined ? table[holder]! : this.answered.get(`${who.uid}\n${label}`);
+          if (first) {
+            table[who.sid] = [label, first[1], first[2], first[3], first[4], who.uid, first[6], first[7]];
+            if (departed !== undefined) {
+              delete table[departed];
+              this.goneSince.delete(departed);
+            }
+            if (first[1] !== committed[1]) {
+              this.core.log("warn", `a new session of a player committed a different secret for the draw '${label}' they already hold (a re-roll by reloading?): refused, the first commitment stands`);
+            }
+          } else if (who.sid !== this.core.me.sid) {
+            table[who.sid] = [label, committed[1], toBase64(this.crypto.getRandomValues(new Uint8Array(16))), 0, 0, who.uid, this.core.me.sid, "r"];
+            this.remember(table[who.sid]!);
+          } else {
+            // the referee's own draw: never its own number. The lowest-ranked other participant's answer (x.fw); none yet:
+            // wait for it; nobody else here: solo (believed only while that lasts)
+            const others = this.presence.list().filter((p) => p.sid !== who.sid);
+            const answer = others
+              .map((p) => ({ sid: p.sid, fw: this.presence.extra(p.sid, "fw") }))
+              .find((a) => Array.isArray(a.fw) && a.fw[0] === who.uid && a.fw[1] === label && a.fw[2] === committed[1] && typeof a.fw[3] === "string");
+            if (answer) table[who.sid] = [label, committed[1], (answer.fw as string[])[3]!, 0, 0, who.uid, answer.sid, "w"];
+            else if (!others.length) table[who.sid] = [label, committed[1], toBase64(this.crypto.getRandomValues(new Uint8Array(16))), 0, 0, who.uid, who.sid, "s"];
+            else continue;
+            this.remember(table[who.sid]!);
+          }
           changed = true;
           continue;
         }
@@ -404,6 +567,14 @@ export class Secrets {
       }
     }
     if (changed) this.numbers.write(table);
+  }
+
+  /** The referee keeps the first entry it answered per user and label for the epoch (bounded). */
+  private remember(entry: DrawEntry): void {
+    const key = `${entry[5]}\n${entry[0]}`;
+    if (this.answered.has(key)) return;
+    this.answered.set(key, [entry[0], entry[1], entry[2], 0, 0, entry[5], entry[6], entry[7]]);
+    while (this.answered.size > ANSWERED_MAX) this.answered.delete(this.answered.keys().next().value as string);
   }
 
   private saveDraw(revealed: boolean): void {
@@ -436,6 +607,7 @@ export class Secrets {
       .filter((e) => e[5] === this.core.me.uid);
     if (mine.some((e) => e[0] === saved.l && e[1] === hash)) {
       this.restoring = null;
+      this.restored = saved;
       this.mySecret = { label: saved.l, secret: saved.s };
       this.presence.setExtra("fd", [saved.l, hash]);
       if (saved.r) this.presence.setExtra("fr", [saved.l, saved.s]);
@@ -455,6 +627,11 @@ export class Secrets {
   /** The referee starts a deal under `label` for the players with these session ids. Replaces its previous deal. */
   beginDeal(label: string, sids: string[]): void {
     if (!this.referee.isMe()) return;
+    // The deal is SHA-256 of the referee's committed seed and every listed contribution. With no other player listed
+    // there is nothing the referee does not choose itself (it could search seeds before committing): say so.
+    if (!sids.some((sid) => sid !== this.core.me.sid)) {
+      this.core.log("warn", `beginDeal('${label}') lists no player but the referee: the deal is the referee's own choice, not a fair one`);
+    }
     const seed = toBase64(this.crypto.getRandomValues(new Uint8Array(16)));
     this.dealSeed = { label, seed };
     this.presence.setExtra("dl", { l: label, h: sha256Text(seed), s: sids.slice(), p: 0 });
@@ -489,14 +666,46 @@ export class Secrets {
     this.presence.setExtra("dl", { ...deal, r: this.dealSeed.seed });
   }
 
-  /** After revealDeal: the deal, recomputed here from the referee's seed and the contributions this client saw; null if it does not check out. */
-  verifyDeal(label: string): Draw | null {
+  /** The session ids the current referee listed as contributors to the deal under `label`, or null (no such deal). */
+  dealContributors(label: string): string[] | null {
+    const deal = this.currentDeal();
+    return deal && deal.l === label ? deal.s.slice() : null;
+  }
+
+  /**
+   * After revealDeal: the deal, recomputed here from the referee's seed and the contributions this client saw; null if it
+   * does not check out. A deal with no contributor but the referee is never fair (the referee could have searched seeds
+   * before committing): null, and a warning. With `expected` (the session ids the game says must contribute: the seated
+   * players), the referee's list must be exactly those, or the deal is null too (a referee that leaves players out of
+   * the list, or lists only accomplices).
+   */
+  verifyDeal(label: string, expected?: string[]): Draw | null {
     const deal = this.currentDeal();
     if (!deal || deal.l !== label || deal.r === undefined) return null;
+    const ref = this.referee.current();
+    if (!deal.s.some((sid) => sid !== ref?.sid)) {
+      this.warnDeal(label, "lists no contributor but the referee: its outcome was the referee's own choice");
+      return null;
+    }
+    if (expected) {
+      const want = [...new Set(expected)].sort();
+      const listed = [...new Set(deal.s)].sort();
+      if (want.length !== listed.length || want.some((sid, i) => sid !== listed[i])) {
+        this.warnDeal(label, `lists ${listed.length} contributors, not the ${want.length} the game expects`);
+        return null;
+      }
+    }
     const seen = this.dealSeen.get(label);
     if (!seen || sha256Text(deal.r) !== seen.h) return null;
     const parts = this.contributions(deal);
     return parts ? new Draw(dealSeedOf(deal.r, label, parts)) : null;
+  }
+
+  private readonly warnedDeals = new Set<string>();
+  private warnDeal(label: string, why: string): void {
+    if (this.warnedDeals.has(label)) return;
+    this.warnedDeals.add(label);
+    this.core.log("warn", `the deal '${label}' ${why}`);
   }
 
   private currentDeal(): DealRecord | null {

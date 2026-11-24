@@ -205,3 +205,33 @@ test("protected values: the owner writes, everyone reads, and anyone else is ref
   assert.equal(prot(boss).Get("gameMaster", ""), "mod");
   assert.ok(probe(guest).refusals.some((r) => r.code === "protected_path"));
 });
+
+test("a burst of big leaves never makes a state message over the relay's 256 KiB: the page hands them over in parts", async () => {
+  // brick builder's archive repack: 20 leaves of about 14 KB changed in one tick (280 KB)
+  const behaviours = Array.from({ length: 20 }, (_, i) => ({ id: `p${i}`, type: "Probe", object: "clickA" }));
+  const burst = async (adapter?: { stateBudgetBytes: number }) => {
+    const room = new FakeRoom({ seed: 140 });
+    const g = makeGame({ slug: "bricks", objects: ["clickA"], behaviours });
+    const a = enter(room, [g], { adapter });
+    const b = enter(room, [g]);
+    await untilStarted(room, [a, b], "bricks");
+    await room.run(3000);
+    for (let i = 0; i < 20; i++) probe(a, "bricks", "0", `p${i}`).Set(i + 1, String.fromCharCode(97 + i).repeat(14000));
+    await room.run(8000);
+    const arrived = Array.from({ length: 20 }, (_, i) => probe(b, "bricks", "0", `p${i}`).value === i + 1 && probe(b, "bricks", "0", `p${i}`).text.length === 14000).filter(Boolean).length;
+    return { room, a, arrived };
+  };
+  // the fake relay closes the socket on an oversize message, as the real one does: with the budget lifted, the app
+  // gathers the whole burst into one batch and is refused again and again
+  const lifted = await burst({ stateBudgetBytes: 4 * 1024 * 1024 });
+  assert.ok(lifted.room.stats.socketsClosed > 0, "an oversize batch closes the socket");
+  assert.ok(lifted.a.notes.some((n) => n.includes("socket closed 1009")));
+  assert.ok(lifted.arrived < 20, `the burst does not arrive (${lifted.arrived} of 20)`);
+  // as shipped: in parts under the budget, all of it arrives, no message is over the limit
+  const paced = await burst();
+  assert.equal(paced.room.stats.socketsClosed, 0);
+  assert.ok(paced.room.stats.largestBatch < 256 * 1024 / 2, `largest batch ${paced.room.stats.largestBatch} bytes`);
+  assert.equal(paced.arrived, 20, "every leaf arrives");
+  const platform = paced.a.platforms[0]!;
+  assert.ok(platform.stateStats.handoffs > 1 && platform.stateStats.deferred > 0, "handed over in parts");
+});

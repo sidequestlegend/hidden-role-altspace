@@ -188,6 +188,12 @@ export interface HostObject {
    * (NonPhysics, attachment point LeftHand / RightHand, `Attach(<local user id>)`); `detach` lets it go. Local player only.
    */
   attachToHand(side: HandSide, position: Vector3, rotation: Quaternion): void;
+  /**
+   * The same at the local player's head (attachment point Head). With `autoSync` the app syncs the attachment so
+   * that other players see the object on this player's head; the object then needs a network id, and one without
+   * gets its per-instance id (`pk1/<slug>/<inst>/<objKey>`) first. Optional on a host object.
+   */
+  attachToHead?(position: Vector3, rotation: Quaternion, autoSync: boolean): void;
   detach(): void;
 }
 
@@ -196,6 +202,8 @@ export interface KitObjectSpec {
   path: string;
   /** Set before any synced component is added; empty when the object needs none. */
   networkId: string;
+  /** The id the object takes if it is attached with autoSync and has none (`pk1/<slug>/<inst>/<objKey>`). Optional. */
+  attachNetworkId?: string;
   sync: "none" | "transform";
   grab: boolean;
   click: boolean;
@@ -316,6 +324,13 @@ export interface Platform {
   raycast(origin: Vector3, direction: Vector3, maxDistance: number, layerMask: number): Promise<RayHit | null>;
   /** The local player's head and hands. Sent while they move; nothing arrives while they keep still. */
   onPose(handler: (poses: LocalPoses) => void): Unsubscribe;
+  /**
+   * Where the local player's head is now, asked once (poses only arrive while the player moves): null when the
+   * app does not say within a few seconds. Every caller on the page shares the one reading.
+   */
+  localPosition(): Promise<Vector3 | null>;
+  /** The local player was teleported (by the app, a spawn, or a script): where to. */
+  onTeleported(handler: (position: Vector3) => void): Unsubscribe;
   /** Buttons, thumbsticks, triggers and keys of the local player. */
   onInput(handler: (event: InputEvent) => void): Unsubscribe;
   /** Buzzes a controller: strength 0 to 1, for `seconds`. Does nothing on desktop. */

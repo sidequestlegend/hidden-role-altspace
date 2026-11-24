@@ -132,7 +132,7 @@
     "Station/Regions/R15/Hub/Board/Text": "hubText",
     "Station/Regions/R15/Hub/CreditsPanel": "creditsPanel",
     "Station/Regions/R15/Muster/Board": "musterBoard",
-    "Station/Regions/R15/Muster/Board/Abstain": "abstainButton",
+    "Station/Regions/R15/Muster/Board/Pass": "abstainButton",
     "Station/Regions/R15/Muster/Board/Text": "musterText",
     "Station/Regions/R15/Muster/Board/Vote0": "vote0",
     "Station/Regions/R15/Muster/Board/Vote0/Label": "voteLabel0",

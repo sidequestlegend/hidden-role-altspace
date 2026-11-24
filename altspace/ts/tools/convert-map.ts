@@ -13,11 +13,11 @@ import { argv, exit } from "node:process";
 /** Rooms of the Hollow Reef habitat, in the order of the upstream room list. */
 const ROOMS: Array<[string, string]> = [
   ["commons", "Commons"],
-  ["decompression", "Decompression Bay"],
+  ["moon-pool", "Moon Pool"],
   ["wet-lab", "Wet Lab"],
-  ["gallery", "Viewing Gallery"],
+  ["lantern-dome", "Lantern Dome"],
   ["sonar", "Sonar Room"],
-  ["dive-locker", "Dive Locker"],
+  ["tether-room", "Tether Room"],
   ["pump-hall", "Pump Hall"],
   ["ballast", "Ballast Control"],
   ["battery", "Battery Bay"],
@@ -33,7 +33,7 @@ const JOBS: string[] = [
   "Trim tank pressure",
   "Log the specimen tray",
   "Focus the floodlights",
-  "Send the surface packet",
+  "Spool the hydrophone tape",
   "Trim hydrophone gain",
   "Charge the dive lamps",
   "Tag the wetsuit racks",
@@ -42,12 +42,12 @@ const JOBS: string[] = [
   "Check the impeller housing",
   "Level the trim tanks",
   "Seat the flood dampers",
-  "Re-route feeder B",
+  "Reseat the cell clamps",
   "Cycle the bus ties",
   "Ping the cable run",
   "Weigh the harvest bins",
   "Strap loose crates",
-  "Purge the condensate trap",
+  "Shake out the lime trays",
   "Read the reserve bottles",
 ];
 

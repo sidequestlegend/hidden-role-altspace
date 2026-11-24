@@ -176,6 +176,7 @@ export class GameInstance implements NetHost {
     this.sync = new Sync(this.core, this.presence, this.referee, this.players);
     this.clockSync = new ClockSync(platform.clock);
     this.host = new RelayHost(platform, game.slug, inst, bindings.refs);
+    this.host.pathOf = (key) => bindings.objects[key]?.path;
     this.storage = new Persistence(platform.storage, game.slug, inst, platform.local().uid);
     this.secrets = new Secrets(this.core, this.presence, this.referee, () => this.clockSync.seconds());
     this.protectedValues = new ProtectedValues(this.core);
@@ -227,7 +228,7 @@ export class GameInstance implements NetHost {
       get IsVR() { return owner.vr; },
       InReach: (point, metres) => !(metres > 0) || this.nearestDistance(point) <= metres,
       TeleportTo: (position, yDegrees, stopMovement = true) => {
-        this.position = position.clone();
+        this.moved(position);
         platform.teleport(position, yDegrees, stopMovement);
       },
       SetAbility: (ability, allowed) => {
@@ -260,6 +261,11 @@ export class GameInstance implements NetHost {
         }),
       );
       core.own(platform.onPose((poses) => this.onPose(poses)));
+      core.own(platform.onTeleported((position) => this.moved(position)));
+      // Poses only arrive while the player moves: ask once where they are, so reach counts from the start.
+      void platform.localPosition().then((position) => {
+        if (position && !this.poses && !this.position && !core.disposed) this.position = position;
+      }, () => undefined);
       void platform.isVR().then((vr) => (this.vr = vr), () => (this.vr = false));
       core.own(platform.onInput((event) => this.onInput(event)));
       core.own(platform.onStateError(core.prefix + ".", (path, code, final) => this.onRefusedPath(path.slice(core.prefix.length + 1), code, final)));
@@ -341,7 +347,7 @@ export class GameInstance implements NetHost {
         objects: keys.map((key) => {
           const o = bindings.objects[key]!;
           const synced = o.sync === "transform" || o.seat;
-          return { key, path: o.path, networkId: synced ? networkId(core.slug, core.inst, key) : "", sync: o.sync, grab: o.grab, click: o.click, seat: o.seat };
+          return { key, path: o.path, networkId: synced ? networkId(core.slug, core.inst, key) : "", attachNetworkId: networkId(core.slug, core.inst, key), sync: o.sync, grab: o.grab, click: o.click, seat: o.seat };
         }),
       };
       try {
@@ -361,12 +367,6 @@ export class GameInstance implements NetHost {
       const subscribe = (kind: HostEventKind, handler: (detail: HostEventDetail) => void) => this.addObjectHandler(key, kind, handler);
       this.objects.set(key, new GameObject(key, path.slice(path.lastIndexOf("/") + 1), this.kit?.objects.get(key) ?? null, this.host, subscribe));
     }
-    this.host.fallbackActive = (key, active) => {
-      const object = this.kit?.objects.get(key);
-      if (!object) return false;
-      object.setActive(active);
-      return true;
-    };
     // Objects the upstream prefab had switched off: the kit holds them on so that the page could find them; off they go now.
     let hidden = 0;
     for (const key of keys) {
@@ -449,6 +449,8 @@ export class GameInstance implements NetHost {
     this.platform.expose(relayKey(core.slug, core.inst), {
       ...extra,
       digest: () => this.digest(),
+      version: () => this.version(),
+      stamp: () => ({ version: this.version(), digest: this.digest() }),
       state: () => JSON.parse(this.sync.snapshotText()),
       referee: () => this.referee.current(),
       players: () => this.players.list().map((p) => ({ id: p.playerId, name: p.displayName, sid: p.sid })),
@@ -973,6 +975,12 @@ export class GameInstance implements NetHost {
     return target in this.bindings.objects ? target : null;
   }
 
+  /** The local player was moved (teleported): the last poses no longer say where they are, until the next one. */
+  private moved(position: Vector3): void {
+    this.position = position.clone();
+    this.poses = null;
+  }
+
   private onPose(poses: LocalPoses): void {
     this.poses = poses;
     this.position = poses.head.position;
@@ -1074,6 +1082,24 @@ export class GameInstance implements NetHost {
   /** A short hash of every synced field: equal on clients that agree. */
   digest(): string {
     return fnv1a(this.sync.snapshotText());
+  }
+
+  /**
+   * Which writes this client's synced state is made of: "<writes>:<hash>", where writes is the sum of the sequence
+   * numbers applied per leaf and the hash covers each leaf's (generation, sequence, writer). Two pages with the same
+   * version hold the same writes, so their digests can be compared; a field that ticks on its own (a referee's timer)
+   * moves the version, and a test waits until both pages report the same one. `stamp()` reads both at once.
+   */
+  version(): string {
+    const parts: string[] = [];
+    let writes = 0;
+    for (const id of [...this.sync.slots.keys()].sort()) {
+      const marker = this.sync.slots.get(id)!.applied;
+      if (!marker) continue;
+      writes += marker.n;
+      parts.push(`${id}:${marker.g}.${marker.n}.${marker.w}`);
+    }
+    return `${writes}:${fnv1a(parts.join("|"))}`;
   }
 
   dispose(): void {

@@ -83,7 +83,7 @@ test("elimination: range 1.45 (+ slack for people), a wall in the way, the coold
   r.time += 0.2;
   r.StartMeeting(b!, null);
   assert.equal(r.TryUseKill(sab!), false, "not in a muster");
-  // Through a wall: the medical-room scanner prop lies between these two points.
+  // Through a wall: the Moon Pool's pressure chamber prop lies between these two points.
   const w = rules(5, { rangeSlack: 0 });
   w.players[0]!.position = at(-50, 10.2);
   w.players[1]!.position = at(-50, 13.3);

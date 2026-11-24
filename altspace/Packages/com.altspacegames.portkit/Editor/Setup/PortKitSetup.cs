@@ -17,6 +17,8 @@ namespace PortKit
     ///                                        import); Logs/portkit_setup.txt ends with DONE or NEEDS ATTENTION
     ///   PortKit/Setup/Report                 the checklist as it stands, nothing changed
     ///   PortKit/Setup/Create Showcase Scene  Assets/Scenes/Showcase.unity (floor, sun), opened and saved
+    ///   PortKit/Setup/Android Device Scan Off / On   the Android extension's ADB preferences (per Windows user, so never
+    ///                                        run by Run SDK Setup): see AndroidScanOff
     ///
     /// The template already has Active Input Handling on Both (the one item whose fix needs a restart) and Run In
     /// Background on, and Multiplayer Play Mode 2.0.2 in its manifest (the one Optional item, which Fix All leaves out).
@@ -148,6 +150,40 @@ namespace PortKit
             catch (Exception e) { report.AppendLine("FAILED: " + e); }
             Directory.CreateDirectory("Logs");
             File.WriteAllText("Logs/portkit_showcase.txt", report.ToString());
+        }
+
+        /// <summary>
+        /// The Android extension's own preferences (names read from UnityEditor.Android.Extensions.dll, 6000.3.21f1): the scan
+        /// for ADB devices when the editor starts, killing ADB servers started from another SDK (on by default: the editor log
+        /// shows "the following ADB server instance have been terminated due to being run from another SDK", which would cut
+        /// off a headset's own tools), and "adb kill-server" when the editor closes.
+        /// </summary>
+        static readonly string[] AndroidAdbPrefs = { "AndroidExtensionModuleStartupUsbScan", "AndroidADBKillExternalInstance", "AndroidADBKillServerOnExit" };
+
+        /// <summary>
+        /// PortKit/Setup/Android Device Scan Off: the three preferences above to false. EditorPrefs belong to the Windows user,
+        /// not the project: this changes every Unity editor of this user on this machine, which is why no setup step runs it.
+        /// Report: Logs/portkit_android_prefs.txt (each preference before and after). The menu "On" puts the defaults back.
+        /// </summary>
+        [MenuItem("PortKit/Setup/Android Device Scan Off")]
+        public static void AndroidScanOff() => SetAndroidPrefs(false);
+
+        [MenuItem("PortKit/Setup/Android Device Scan On")]
+        public static void AndroidScanOn() => SetAndroidPrefs(true);
+
+        static void SetAndroidPrefs(bool on)
+        {
+            var report = new StringBuilder();
+            foreach (var key in AndroidAdbPrefs)
+            {
+                string before = EditorPrefs.HasKey(key) ? EditorPrefs.GetBool(key).ToString() : "(not set: the extension's default)";
+                EditorPrefs.SetBool(key, on);
+                report.AppendLine($"{key}: {before} -> {EditorPrefs.GetBool(key)}");
+            }
+            report.AppendLine("these are per-user EditorPrefs: every Unity editor of this user sees them (restart an editor for the startup scan)");
+            report.AppendLine("DONE");
+            Directory.CreateDirectory("Logs");
+            File.WriteAllText("Logs/portkit_android_prefs.txt", report.ToString());
         }
     }
 }

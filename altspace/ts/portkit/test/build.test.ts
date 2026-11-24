@@ -47,7 +47,7 @@ test("the build makes one IIFE that runs in a page, and loading it twice is harm
     assert.equal(result.slug, SLUG);
     assert.ok(result.file.endsWith(`pk-${SLUG}.js`));
     const code = readFileSync(result.file, "utf8");
-    assert.match(code, /^\/\* pk-tic-tac-toe\.js: [^\n]*\*\/\n\(\(\) => \{/, "a banner, then one function expression: nothing leaks into the page's globals");
+    assert.match(code, /^\/\*! The portkit runtime in this file:\n \* MIT License\n[\s\S]*?the portkit authors[\s\S]*?\*\/\n\/\* pk-tic-tac-toe\.js: [^\n]*\*\/\n\(\(\) => \{/, "portkit's licence, the banner, then one function expression: nothing leaks into the page's globals");
     assert.ok(code.trimEnd().endsWith("})();"));
     assert.ok(code.includes("Board/Cells/Cell4"), "bindings.json is compiled in");
     assert.ok(!code.includes("node:"), "nothing of Node, so nothing of the fake room, is in the script");
@@ -70,6 +70,7 @@ test("the build makes one IIFE that runs in a page, and loading it twice is harm
       performance: { now: env.now },
       console: env.console,
     });
+    (env.win as { __pk1_debug?: boolean }).__pk1_debug = true; // a test page: debugging hooks wanted
     const before = Object.keys(context).sort();
     vm.runInContext(code, context, { filename: "pk-tic-tac-toe.js" });
     vm.runInContext(code, context, { filename: "pk-tic-tac-toe.js" }); // the snippet's script tag, twice

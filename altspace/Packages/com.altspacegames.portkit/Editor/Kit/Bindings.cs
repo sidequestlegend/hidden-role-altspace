@@ -130,7 +130,7 @@ namespace PortKit
     {
         public const int Schema = 1;
         public static readonly string[] EventKinds =
-            { "click", "grab", "drop", "triggerEnter", "triggerExit", "collisionEnter", "uiButton", "uiSlider", "uiToggle", "heldTrigger", "heldPrimary", "heldSecondary", "field" };
+            { "click", "grab", "drop", "triggerEnter", "triggerExit", "collisionEnter", "uiButton", "uiSlider", "uiToggle", "heldTrigger", "heldPrimary", "heldSecondary", "field", "graph" };
         public static readonly string[] SyncKinds = { "none", "transform" };
 
         public sealed class ObjectEntry
@@ -155,6 +155,8 @@ namespace PortKit
         public sealed class EventEntry
         {
             public string Object, Kind, Behaviour, Method;
+            /// <summary>Kind "graph" only (README): the name a graph reports through window.__pk1.event; such an event has no object.</summary>
+            public string Name;
         }
 
         public string Slug = "";
@@ -186,10 +188,17 @@ namespace PortKit
                 ["objects"] = objects,
                 ["refs"] = new JArray(Refs),
                 ["behaviours"] = new JArray(Behaviours.Select(BehaviourJson)),
-                ["events"] = new JArray(Events.Select(e => new JObject { ["object"] = e.Object, ["kind"] = e.Kind, ["behaviour"] = e.Behaviour, ["method"] = e.Method })),
+                ["events"] = new JArray(Events.Select(EventJson)),
             };
             if (!string.IsNullOrEmpty(Root)) body["root"] = Root;
             return body;
+        }
+
+        static JObject EventJson(EventEntry e)
+        {
+            // a graph event has a name and no object; every other kind is written as before, so its hash is unchanged
+            if (e.Kind == "graph") return new JObject { ["kind"] = e.Kind, ["name"] = e.Name, ["behaviour"] = e.Behaviour, ["method"] = e.Method };
+            return new JObject { ["object"] = e.Object, ["kind"] = e.Kind, ["behaviour"] = e.Behaviour, ["method"] = e.Method };
         }
 
         static JObject BehaviourJson(BehaviourEntry b)
@@ -236,7 +245,15 @@ namespace PortKit
             foreach (var e in Events)
             {
                 if (!EventKinds.Contains(e.Kind)) problems.Add($"event kind '{e.Kind}' is not one of {string.Join(", ", EventKinds)}");
-                if (!Objects.ContainsKey(e.Object)) problems.Add($"an event is on '{e.Object}', which is not an object key");
+                if (e.Kind == "graph")
+                {
+                    if (string.IsNullOrEmpty(e.Name) || !System.Text.RegularExpressions.Regex.IsMatch(e.Name, "^[A-Za-z0-9_.-]+$"))
+                        problems.Add($"a graph event needs a name of letters, digits, '_', '.' or '-' (got '{e.Name}')");
+                    else if (RelayGraph.RelayedKinds.Contains(e.Name) || new[] { "click", "grab", "drop", "triggerEnter", "triggerExit", "collisionEnter", "collisionExit", "clock" }.Contains(e.Name))
+                        problems.Add($"graph event name '{e.Name}' is reserved for an object's own events (README, Graph to page)");
+                    if (string.IsNullOrEmpty(e.Behaviour) || string.IsNullOrEmpty(e.Method)) problems.Add($"graph event '{e.Name}' needs a behaviour and a method");
+                }
+                else if (!Objects.ContainsKey(e.Object ?? "")) problems.Add($"an event is on '{e.Object}', which is not an object key");
                 if (!string.IsNullOrEmpty(e.Behaviour) && !ids.Contains(e.Behaviour)) problems.Add($"an event names behaviour '{e.Behaviour}', which does not exist");
                 if (RelayGraph.RelayedKinds.Contains(e.Kind) && !Refs.Contains(e.Object)) problems.Add($"event '{e.Kind}' on '{e.Object}' needs the relay graph, but '{e.Object}' is not in refs");
             }
@@ -306,10 +323,21 @@ namespace PortKit
             return key;
         }
 
-        /// <summary>The id of the n-th behaviour of a type on an object ("b1", "b2", ... in the order first seen, for ever).</summary>
-        public string BehaviourId(string objectKey, string type, int ordinal)
+        /// <summary>
+        /// The id of the n-th behaviour of a type on an object ("b1", "b2", ... in the order first seen, for ever), or `wanted`
+        /// when the builder asks for one (KitStage.Behaviour(..., id: "board")): that slot keeps it, and it is never handed out
+        /// as an automatic id.
+        /// </summary>
+        public string BehaviourId(string objectKey, string type, int ordinal, string wanted = null)
         {
             string slot = objectKey + "#" + type + "#" + ordinal.ToString(CultureInfo.InvariantCulture);
+            if (!string.IsNullOrEmpty(wanted))
+            {
+                foreach (var pair in behaviours.Where(b => b.Value == wanted && b.Key != slot).ToList()) behaviours.Remove(pair.Key);   // the builder moved it
+                behaviours[slot] = wanted;
+                usedIds.Add(wanted);
+                return wanted;
+            }
             if (behaviours.TryGetValue(slot, out var known)) return known;
             string id;
             do id = "b" + (nextBehaviour++).ToString(CultureInfo.InvariantCulture); while (usedIds.Contains(id));

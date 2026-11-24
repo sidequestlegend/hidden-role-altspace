@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { AudioSourceRef, Color, decodeRelayArg, encodeRelayArg, parseRelayPayload, relayNumber, type AnimatorRef, type RendererRef, type TextRef } from "../src/index.ts";
 import { FakeRoom } from "../src/platform/fake.ts";
 import { seededRandom } from "../src/util.ts";
-import { enter, inst, makeGame, probe, untilStarted } from "./games.ts";
+import { enter, inst, makeGame, probe, probeGame, untilStarted } from "./games.ts";
 
 test("relay arguments survive the trip, and the JSON literal the graph gets has no escapes in it", () => {
   const samples = ["plain", "", "a|b^c%d", 'say "hi"', "back\\slash", "line\nbreak\ttab\r", "50% off | now ^ never", "%7C is not a bar", "naïve ✓ 日本語 🎲", "\u0000\u001f", "trailing%"];
@@ -244,7 +244,7 @@ test("bundle addresses: the element's own, else what the page was given at relea
   assert.ok(bare.logged("warn").some((line) => line.includes("no bundle address")));
 });
 
-test("an object the relay graph cannot reach is reported once, and switching it falls back to the page", async () => {
+test("an object outside refs: its text is reported once as unreachable, and SetActive goes by the relay with its path", async () => {
   const room = new FakeRoom({ seed: 94 });
   const g = makeGame({ slug: "refs", objects: ["inRefs", "notInRefs"], refs: ["inRefs"], behaviours: [{ id: "p", type: "Probe", fields: { hidden: { $obj: "notInRefs" }, label: { $comp: "notInRefs", kind: "TMP" } } }] });
   const a = enter(room, [g]);
@@ -254,9 +254,53 @@ test("an object the relay graph cannot reach is reported once, and switching it 
   p.label.text = "one";
   p.label.text = "two";
   await room.run(200);
-  assert.equal(a.object("refs", "0", "notInRefs").active, false, "the page switched it off itself");
+  // SetActive of a bound object outside refs goes by the relay, addressed by its path: one road for its whole life.
+  const path = "@" + g.bindings.objects.notInRefs!.path;
+  assert.equal(a.graph("refs").active.get(path), false, "the relay switched it off by its path");
   assert.equal(p.hidden.activeSelf, false);
-  assert.equal(a.graph("refs").records.length, 0);
+  p.hidden.SetActive(true);
+  p.hidden.SetActive(false);
+  p.hidden.SetActive(true);
+  await room.run(200);
+  assert.deepEqual(
+    a.graph("refs").records.filter((r) => r.op === "active").map((r) => `${r.target}=${r.args[0]}`),
+    [`${path}=0`, `${path}=1`],
+    "in order, the last value of a tick only",
+  );
+  assert.equal(a.graph("refs").records.filter((r) => r.op !== "active").length, 0, "the text of an object outside refs is not sent");
   assert.equal(a.logged("warn").filter((line) => line.includes("not in bindings.refs")).length, 1);
   assert.ok(new AudioSourceRef("AudioSource", inst(a, "refs").objects.get("inRefs")!, inst(a, "refs").host) instanceof AudioSourceRef);
+});
+
+test("a TextRef starts unknown: setting \"\" first is sent (a prefab placeholder text is cleared)", async () => {
+  const room = new FakeRoom({ seed: 95 });
+  const g = makeGame({ slug: "blank", objects: ["label"], refs: ["label"], behaviours: [{ id: "p", type: "Probe", fields: { label: { $comp: "label", kind: "TMP" } } }] });
+  const a = enter(room, [g]);
+  await untilStarted(room, [a], "blank");
+  const p = probe(a, "blank") as unknown as { label: TextRef };
+  assert.equal(p.label.text, "", "reads as empty before anything was set");
+  p.label.text = "";
+  await room.run(200);
+  assert.equal(a.graph("blank").text.get("label"), "", "the first value went out although it is empty");
+  p.label.text = "";
+  p.label.text = "x";
+  p.label.text = "x";
+  await room.run(200);
+  assert.deepEqual(a.graph("blank").records.filter((r) => r.op === "text").map((r) => r.args[0]), ["", "x"]);
+});
+
+test("debugging hooks reach window.__pk1.debug only on a test page (window.__pk1_debug), never on a published one", async () => {
+  const room = new FakeRoom({ seed: 96 });
+  const g = probeGame("hooks", { debug: () => ({ cheat: () => "a hook a game added for its tests" }) });
+  const published = enter(room, [g]);
+  const testPage = room.join({ name: "Tester" });
+  (testPage.env.win as { __pk1_debug?: boolean }).__pk1_debug = true;
+  room.defineKit(g.kit, g.bindings);
+  testPage.load(g.game, g.bindings);
+  testPage.addSnippet("hooks");
+  await untilStarted(room, [published, testPage], "hooks");
+  const registry = (client: typeof published) => (client.env.win as { __pk1: { debug: Record<string, Record<string, unknown>> } }).__pk1.debug;
+  assert.deepEqual(Object.keys(registry(published)), [], "nothing exposed on a published page");
+  assert.ok(typeof registry(testPage)["hooks:0"]?.cheat === "function", "the test page has the game's hooks");
+  assert.ok(typeof registry(testPage)["hooks:0"]?.digest === "function" && typeof registry(testPage)["hooks:0"]?.version === "function");
 });

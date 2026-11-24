@@ -14,7 +14,7 @@ export class Participant {
   readonly uid: string;
   readonly name: string;
   readonly isBot: boolean;
-  /** NetworkedPosition: as last reported (a person) or as moved by the referee (a bot). */
+  /** NetworkedPosition: the referee's own, following what a person reports at most at a run (PORT.md D12), or a bot's. */
   position: Vector2;
   role: Role = Role.Unassigned;
   state: MatchState = MatchState.Lobby;
@@ -34,8 +34,8 @@ export class Participant {
   lastKillTime: number;
   /** The player has left the world (upstream despawns them; the slot stays so numbers keep their meaning). */
   gone = false;
-  /** Seconds the referee waits before trusting a position that jumped (PORT.md C11). */
-  unsettledUntil = -Infinity;
+  /** Wave jobs a downed technician would have been given while nobody had yet seen them down (the published total counts them, D4). */
+  unseenWaveJobs = 0;
   private readonly killCooldownSeconds: number;
 
   constructor(slot: number, uid: string, name: string, isBot: boolean, position: Vector2, killCooldownSeconds: number) {
@@ -135,6 +135,7 @@ export class Participant {
     this.completedTaskMask = 0;
     this.lastAssignedTaskId = -1;
     this.taskDeadlineFailed = false;
+    this.unseenWaveJobs = 0;
     // Upstream sets LastKillTime = -cooldown, which on its clock (Time.time from 0) means "ready at once". On the
     // synced clock the same meaning is "ready now": set by MatchRules.StartRound with the start time.
   }

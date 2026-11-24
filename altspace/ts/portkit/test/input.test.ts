@@ -202,3 +202,30 @@ test("a pool of pre-placed objects: the owner spawns and places, everyone sees t
   for (let i = 0; i < 3; i++) assert.ok(pool(owner).TryToSpawn());
   assert.equal(pool(owner).TryToSpawn(), null);
 });
+
+test("reach counts from the start: the runtime asks once where the head is, and a teleport moves it", async () => {
+  const room = new FakeRoom({ seed: 113 });
+  const g = makeGame({ slug: "spawn", objects: ["clickButton"], behaviours: [{ id: "p", type: "Probe", object: "clickButton" }], definition: { interactReach: 1 } });
+  const a = enter(room, [g]);
+  a.head = new Vector3(0, 1.6, 6); // standing 6 m away, and keeping still: no pose arrives
+  await untilStarted(room, [a], "spawn");
+  await room.run(500);
+  const p = probe(a, "spawn");
+  const at = new Vector3(0, 1, 0);
+  assert.equal(p.Input.Position?.z, 6, "the head was read once at start");
+  assert.equal(p.Input.InReach(at, 1), false);
+  a.click("spawn", "0", "clickButton", at);
+  assert.equal(p.interacts, 0, "a click from 6 m away does not count before the first pose");
+  assert.ok(!a.object("spawn", "0", "clickButton").destroyed);
+  // The app teleports the player next to the button (a portal, a respawn): poses say nothing until they move.
+  a.teleported(new Vector3(0, 1, 0.5));
+  assert.equal(p.Input.InReach(at, 1), true);
+  a.click("spawn", "0", "clickButton", at);
+  assert.equal(p.interacts, 1);
+  // With no answer at all (the default fake client, as an app that never moves the probe), clicks count as before.
+  const b = enter(room, [g]);
+  await untilStarted(room, [a, b], "spawn");
+  await room.run(6000);
+  assert.equal(probe(b, "spawn").Input.Position, null);
+  assert.ok(b.logged("error").length === 0);
+});

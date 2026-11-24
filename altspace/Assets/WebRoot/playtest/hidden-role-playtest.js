@@ -82,17 +82,13 @@
   }
 
   /**
-   * Turns to an object and puts the mouse on it. "look" centres it on the screen, where the last object clicked
-   * usually was too: the SDK's desktop pointer then still acts on that one (seen: a Start click that pressed Stop
-   * again), so the mouse is first moved off it and back.
+   * Turns to an object and puts the mouse on it. (portkit's pointer commands move the mouse a pixel aside first, so
+   * the SDK's desktop pointer never acts on the object it last hovered.)
    */
   async function lookAt(key) {
     const pos = await probe("pos", path(key));
     if (pos.startsWith("error")) return null;
     await cmd("look " + pos);
-    const v = num(pos);
-    await cmd(`pointer ${v[0]} ${v[1] - 0.25} ${v[2]}`);
-    await cmd("wait 3");
     await cmd("pointer " + pos);
     return pos;
   }

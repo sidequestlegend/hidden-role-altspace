@@ -53,13 +53,16 @@ namespace PortKit
                     {
                         var assets = new List<string> { kit.PrefabPath };
                         if (kit.NoticesPath != null) assets.Add(kit.NoticesPath);
+                        var licences = Licences(kit);
+                        assets.AddRange(licences.Where(l => !assets.Contains(l)));
                         var build = new AssetBundleBuild { assetBundleName = kit.Slug, assetNames = assets.ToArray() };
                         var manifest = BuildPipeline.BuildAssetBundles(output, new[] { build }, BuildAssetBundleOptions.ChunkBasedCompression, target);
                         string file = BundlePath(folder, kit.Slug);
                         if (manifest == null || !File.Exists(file)) { report.AppendLine($"FAILED {folder} {kit.Slug}: no bundle"); ok = false; continue; }
                         var verdict = Check(file);
                         if (!verdict.passed) ok = false;
-                        report.AppendLine($"{folder} {kit.Slug}: {new FileInfo(file).Length / 1024f:F0} KiB, {(kit.NoticesPath != null ? "with notices" : "NO NOTICES FILE")}; check: {verdict.text}");
+                        report.AppendLine($"{folder} {kit.Slug}: {new FileInfo(file).Length / 1024f:F0} KiB, {(kit.NoticesPath != null ? "with notices" : "NO NOTICES FILE")}, " +
+                                          $"licence texts: {(licences.Count > 0 ? string.Join(", ", licences.Select(Path.GetFileName)) : "none")}; check: {verdict.text}");
                         Write(LogPath, report);
                     }
                 }
@@ -67,6 +70,18 @@ namespace PortKit
             catch (Exception e) { report.AppendLine("FAILED: " + e); ok = false; }
             report.AppendLine(ok ? "DONE" : "FAILED");
             Write(LogPath, report);
+        }
+
+        /// <summary>TextMesh Pro's licence text for Liberation Sans (SIL OFL 1.1), imported with its essentials.</summary>
+        public const string LiberationSansLicence = "Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt";
+
+        /// <summary>The licence texts that go into a kit's bundles: the builder's own, and the OFL whenever the prefab uses Liberation Sans.</summary>
+        public static List<string> Licences(KitBuilder kit)
+        {
+            var list = kit.LicenseFiles.ToList();
+            bool usesLiberation = AssetDatabase.GetDependencies(kit.PrefabPath, true).Any(d => Path.GetFileName(d).StartsWith("LiberationSans", StringComparison.OrdinalIgnoreCase));
+            if (usesLiberation && File.Exists(LiberationSansLicence) && !list.Contains(LiberationSansLicence)) list.Add(LiberationSansLicence);
+            return list;
         }
 
         static void Write(string path, StringBuilder report)

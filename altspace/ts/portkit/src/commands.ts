@@ -54,6 +54,8 @@ export class Commands {
   private readonly queue: Pending[] = [];
   private nextNumber = 0;
   private readonly acks: RefereeTable<number>;
+  private reviewing = false;
+  private reviewAgain = false;
   /** False until behaviours have started: the referee runs nothing before then. */
   started = false;
   run = 0;
@@ -91,9 +93,31 @@ export class Commands {
     return n;
   }
 
-  /** Publishes, runs and acknowledges whatever is due. Also called about once a second. */
+  /**
+   * Publishes, runs and acknowledges whatever is due. Also called about once a second. Not re-entrant: a command
+   * handler that publishes a user-state record (Secrets.beginDeal, presence.setExtra) tells every record listener at
+   * once, which calls this again; that call is held and run after the current pass, so no command runs inside another.
+   */
   review(): void {
     if (this.core.disposed || !this.started) return;
+    if (this.reviewing) {
+      this.reviewAgain = true;
+      return;
+    }
+    this.reviewing = true;
+    try {
+      let passes = 0;
+      do {
+        this.reviewAgain = false;
+        this.reviewOnce();
+      } while (this.reviewAgain && !this.core.disposed && ++passes < 16);
+    } finally {
+      this.reviewing = false;
+      this.reviewAgain = false;
+    }
+  }
+
+  private reviewOnce(): void {
     const me = this.core.me.sid;
     const acked = this.table()[me] ?? 0;
     while (this.queue.length && this.queue[0]!.n <= acked) {
@@ -135,8 +159,11 @@ export class Commands {
         const acked = table[who.sid] ?? 0;
         if (q[0] <= acked) continue;
         if (acked > 0 && q[0] !== acked + 1) break;
+        // The acknowledgement is written before the command runs: whatever the handler does (it may publish a record
+        // of its own, which reviews again), this request is already done.
         table[who.sid] = q[0];
-        changed = true;
+        this.acks.write(table);
+        changed = false;
         const behaviour = this.routes.resolve(q[1], typeof q[2] === "string" && q[2] ? q[2] : null);
         const args = Array.isArray(q[4]) ? q[4].map(decodeValue) : [];
         this.run++;

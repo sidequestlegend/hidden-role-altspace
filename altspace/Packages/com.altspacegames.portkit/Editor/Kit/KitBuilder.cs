@@ -47,6 +47,29 @@ namespace PortKit
         public virtual string ScriptPath => $"Assets/WebRoot/pk-{Slug}.js";
         /// <summary>The licence notices that go into every bundle with the prefab (a text asset inside Assets), or null.</summary>
         public virtual string NoticesPath => File.Exists($"{KitFolder}/THIRD-PARTY-NOTICES.md") ? $"{KitFolder}/THIRD-PARTY-NOTICES.md" : null;
+        /// <summary>
+        /// Full licence texts packed into the bundles beside the notices (which only point to them): every .txt or .md file
+        /// in {KitFolder}/Licenses/, and any file under {KitFolder} whose name holds LICENSE, LICENCE, OFL or COPYING. KitBundles
+        /// adds TextMesh Pro's "LiberationSans - OFL.txt" by itself whenever the prefab uses that font (KitText.DefaultFont).
+        /// </summary>
+        public virtual IEnumerable<string> LicenseFiles
+        {
+            get
+            {
+                var found = new List<string>();
+                if (!Directory.Exists(KitFolder)) return found;
+                foreach (var file in Directory.GetFiles(KitFolder, "*", SearchOption.AllDirectories))
+                {
+                    string path = file.Replace('\\', '/');
+                    if (path.EndsWith(".meta") || path.Contains("/Editor/")) continue;
+                    string name = Path.GetFileName(path).ToUpperInvariant();
+                    bool inFolder = path.StartsWith(KitFolder + "/Licenses/") && (name.EndsWith(".TXT") || name.EndsWith(".MD"));
+                    bool named = (name.Contains("LICENSE") || name.Contains("LICENCE") || name.Contains("OFL") || name.Contains("COPYING")) && (name.EndsWith(".TXT") || name.EndsWith(".MD"));
+                    if (inFolder || named) found.Add(path);
+                }
+                return found.OrderBy(p => p, StringComparer.Ordinal).ToList();
+            }
+        }
         /// <summary>Project folders whose scripts are upstream stand-ins: read for the bindings, then stripped.</summary>
         public virtual string[] StandInFolders => new[] { "Assets/Upstream/" };
 
@@ -63,6 +86,22 @@ namespace PortKit
         public virtual string SnippetPosition => "0 0 0";
         /// <summary>The game's own settings, as attributes of the markup with their defaults (the snippet's Inspector shows them).</summary>
         public virtual IReadOnlyList<(string name, string value)> SnippetSettings => Array.Empty<(string, string)>();
+        /// <summary>
+        /// More gizmos for the snippet's markup, each one whole element (`&lt;bs-gizmo type="box" attribute="zone" size="4 0.2 4"/&gt;`),
+        /// written after the position and box gizmos (a game's zones, a prize position: settings a host places by hand).
+        /// </summary>
+        public virtual IReadOnlyList<string> SnippetGizmos => Array.Empty<string>();
+        /// <summary>The markup's box gizmo size ("x y z", metres). Null: as wide and deep as the kit's footprint either side of its position, 0.2 high.</summary>
+        public virtual string GizmoSize => null;
+
+        // ---- the kit's photo (PortKit/Kit/Take Photos) ----
+        /// <summary>
+        /// The part of the kit the photo shows and frames: a path under the kit root ("Table"). Null: the whole kit. The rest is
+        /// hidden for the photo (a lounge 70 m below the table, objects kept for the page's sake).
+        /// </summary>
+        public virtual string PhotoRoot => null;
+        /// <summary>The box the photo frames, in the kit's own axes. Null: the box around what PhotoRoot draws.</summary>
+        public virtual Bounds? PhotoBounds => null;
 
         /// <summary>Put the kit together under stage.Root and say what the script needs (stage.Object, Ref, Behaviour, Event, AddGraph).</summary>
         protected abstract void Compose(KitStage stage);
@@ -174,6 +213,11 @@ namespace PortKit
         readonly List<(MonoBehaviour standIn, string type, JObject extra)> behaviours = new List<(MonoBehaviour, string, JObject)>();
         readonly Dictionary<MonoBehaviour, string> behaviourIds = new Dictionary<MonoBehaviour, string>();
         readonly List<(GameObject go, string type, JObject fields, string id)> plainBehaviours = new List<(GameObject, string, JObject, string)>();
+        /// <summary>Ids the builder asked for, by plain behaviour index (Behaviour(go, type, fields, id: ...)).</summary>
+        readonly Dictionary<int, string> wantedIds = new Dictionary<int, string>();
+        /// <summary>Behaviours (stand-ins, plain tokens) marked per-player (README bindings "perPlayer").</summary>
+        readonly HashSet<object> perPlayer = new HashSet<object>();
+        readonly List<(string name, object behaviour, string method)> graphEvents = new List<(string, object, string)>();
         readonly List<(GameObject go, string kind, object behaviour, string method)> events = new List<(GameObject, string, object, string)>();
 
         internal KitStage(KitBuilder builder, GameObject root, Scene scene, BindingsLock bindingsLock, StringBuilder report)
@@ -300,14 +344,86 @@ namespace PortKit
                 if (mb != null && IsStandIn(mb)) Behaviour(mb);
         }
 
-        /// <summary>A behaviour with no stand-in behind it: the builder states its type and fields. Returns a token to name it in Event().</summary>
-        public object Behaviour(GameObject go, string type, JObject fields = null)
+        /// <summary>
+        /// A behaviour with no stand-in behind it: the builder states its type and fields. Returns a token to name it in Event().
+        /// `perPlayer`: one copy per player, owned by that player (README bindings "perPlayer"; the class can also say so with
+        /// `static perPlayer = true`). `id`: the behaviour id to use instead of an automatic one (letters, digits, '_', '-';
+        /// kept in the lock), for a behaviour that other code or saved data names.
+        /// </summary>
+        public object Behaviour(GameObject go, string type, JObject fields = null, bool perPlayer = false, string id = null)
         {
             go = Object(go);
+            if (id != null && !System.Text.RegularExpressions.Regex.IsMatch(id, "^[A-Za-z0-9_-]+$"))
+                throw new Exception($"behaviour id '{id}' must be letters, digits, underscore or hyphen");
+            if (id != null && wantedIds.ContainsValue(id)) throw new Exception($"behaviour id '{id}' is asked for twice");
             var token = new object();
             plainBehaviours.Add((go, type, fields ?? new JObject(), null));
             plainTokens[token] = plainBehaviours.Count - 1;
+            if (id != null) wantedIds[plainBehaviours.Count - 1] = id;
+            if (perPlayer) this.perPlayer.Add(token);
             return token;
+        }
+
+        /// <summary>Marks a behaviour (a stand-in, or a Behaviour() token) per-player, or not (README bindings "perPlayer").</summary>
+        public void PerPlayer(object behaviour, bool on = true)
+        {
+            if (behaviour is MonoBehaviour standIn) { Behaviour(standIn); behaviour = Mine(standIn); }
+            else if (behaviour == null || !plainTokens.ContainsKey(behaviour)) throw new Exception("PerPlayer: not a behaviour of this kit");
+            if (on) perPlayer.Add(behaviour); else perPlayer.Remove(behaviour);
+        }
+
+        /// <summary>
+        /// A graph-to-page event (README "Graph to page") bound to a method: {"kind":"graph","name":...} in bindings. The
+        /// game's own graph reports it with g.PageEvent(name, ...); the method gets the arguments as strings.
+        /// </summary>
+        public void GraphEvent(string name, object behaviour, string method)
+        {
+            if (behaviour is MonoBehaviour standIn) { Behaviour(standIn); behaviour = Mine(standIn); }
+            graphEvents.Add((name, behaviour, method));
+        }
+
+        /// <summary>
+        /// Gives `holder` (a kit object) a clip list the relay's audio op can play: an AudioSource and a BS Audio Source with
+        /// these clips, mirrored into its "PkClips" variable, and the holder joins refs. Clips already on the list keep their
+        /// index. Returns each clip's index. For a plain behaviour's audio, which no stand-in field brings in.
+        /// </summary>
+        public int[] Clips(GameObject holder, params AudioClip[] clips)
+        {
+            holder = Object(holder);
+            return clips.Select(clip => ClipIndex(holder, clip)).ToArray();
+        }
+
+        /// <summary>{"$clip": n, "on": key} for one clip on `holder`'s list (added if it is not there), for a plain behaviour's field.</summary>
+        public JObject ClipValue(GameObject holder, AudioClip clip)
+        {
+            holder = Object(holder);
+            int index = ClipIndex(holder, clip);
+            return new JObject { ["$clip"] = index, ["on"] = Pending(() => KeyOf(holder)) };
+        }
+
+        /// <summary>The clip's index in the holder's BS Audio Source list and PkClips mirror, adding it (and them) if needed.</summary>
+        int ClipIndex(GameObject holder, AudioClip clip)
+        {
+            if (clip == null) throw new ArgumentNullException(nameof(clip));
+            clip = Mine(clip);
+            if (holder.GetComponent<AudioSource>() == null) holder.AddComponent<AudioSource>().playOnAwake = false;
+            var audio = holder.GetComponent(T("BS.BSAudioSource")) ?? holder.AddComponent(T("BS.BSAudioSource"));
+            var so = new SerializedObject(audio);
+            var list = so.FindProperty("clips");
+            // the relay's audio op finds the clip by the holder's refs index in the holder's "PkClips" list (the graph cannot read BS Audio Source)
+            Ref(holder);
+            for (int i = 0; i < list.arraySize; i++)
+                if (list.GetArrayElementAtIndex(i).objectReferenceValue == clip) return i;
+            list.arraySize++;
+            list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = clip;
+            var playOnAwake = so.FindProperty("playOnAwake");
+            if (playOnAwake != null) playOnAwake.boolValue = false;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            var variables = holder.GetComponent<Variables>() ?? holder.AddComponent<Variables>();
+            var mirror = variables.declarations.IsDefined(RelayGraph.ClipsVariable) ? variables.declarations.Get(RelayGraph.ClipsVariable) as AotList : null;
+            if (mirror == null) { mirror = new AotList(); variables.declarations.Set(RelayGraph.ClipsVariable, mirror); }
+            mirror.Add(clip);
+            return list.arraySize - 1;
         }
         readonly Dictionary<object, int> plainTokens = new Dictionary<object, int>();
         readonly Dictionary<object, string> groupOf = new Dictionary<object, string>();
@@ -385,6 +501,7 @@ namespace PortKit
         public void Event(GameObject go, string kind, object behaviour = null, string method = null)
         {
             if (!Bindings.EventKinds.Contains(kind)) throw new Exception($"event kind '{kind}' is not one of {string.Join(", ", Bindings.EventKinds)}");
+            if (kind == "graph") throw new Exception("a graph event has a name and no object: use GraphEvent(name, behaviour, method)");
             go = Object(go);
             if (kind == "click") Object(go, click: true);
             if (kind == "grab" || kind == "drop" || kind.StartsWith("held")) Object(go, grab: true);
@@ -461,12 +578,12 @@ namespace PortKit
         readonly Dictionary<string, int> ordinals = new Dictionary<string, int>();
 
         /// <summary>The id of the next behaviour of `type` on `go`: the same one it had in the last export.</summary>
-        string NextId(GameObject go, string type)
+        string NextId(GameObject go, string type, string wanted = null)
         {
             string slot = KeyOf(go) + "#" + type;
             ordinals.TryGetValue(slot, out int n);
             ordinals[slot] = n + 1;
-            return Lock.BehaviourId(KeyOf(go), type, n);
+            return Lock.BehaviourId(KeyOf(go), type, n, wanted);
         }
 
         string IdOf(MonoBehaviour standIn)
@@ -484,24 +601,30 @@ namespace PortKit
                 if (entries.ContainsKey(t.gameObject)) Untwin(t.gameObject);
 
             // ---- behaviours: ids first (they refer to each other), then their fields ----
+            // ids the builder asked for first, so that no automatic id takes one of them
+            foreach (var pair in wantedIds.OrderBy(w => w.Key))
+            {
+                var p = plainBehaviours[pair.Key];
+                plainBehaviours[pair.Key] = (p.go, p.type, p.fields, NextId(p.go, p.type, pair.Value));
+            }
             for (int i = 0; i < behaviours.Count; i++) IdOf(behaviours[i].standIn);
             for (int i = 0; i < plainBehaviours.Count; i++)
             {
                 var p = plainBehaviours[i];
-                plainBehaviours[i] = (p.go, p.type, p.fields, NextId(p.go, p.type));
+                if (p.id == null) plainBehaviours[i] = (p.go, p.type, p.fields, NextId(p.go, p.type));
             }
             for (int i = 0; i < behaviours.Count; i++)                      // (EncodeFields may append more: see IdOf)
             {
                 var (standIn, type, extra) = behaviours[i];
                 var fields = EncodeFields(standIn);
                 if (extra != null) foreach (var p in extra.Properties()) fields[p.Name] = p.Value;
-                Bindings.Behaviours.Add(new Bindings.BehaviourEntry { Id = behaviourIds[standIn], Type = type, Object = KeyOf(standIn.gameObject), Fields = fields, Group = GroupFor(standIn, type) });
+                Bindings.Behaviours.Add(new Bindings.BehaviourEntry { Id = behaviourIds[standIn], Type = type, Object = KeyOf(standIn.gameObject), Fields = fields, Group = GroupFor(standIn, type), PerPlayer = perPlayer.Contains(standIn) });
             }
             var tokenAt = plainTokens.ToDictionary(pair => pair.Value, pair => pair.Key);
             for (int i = 0; i < plainBehaviours.Count; i++)
             {
                 var p = plainBehaviours[i];
-                Bindings.Behaviours.Add(new Bindings.BehaviourEntry { Id = p.id, Type = p.type, Object = KeyOf(p.go), Fields = p.fields, Group = GroupFor(tokenAt[i], p.type) });
+                Bindings.Behaviours.Add(new Bindings.BehaviourEntry { Id = p.id, Type = p.type, Object = KeyOf(p.go), Fields = p.fields, Group = GroupFor(tokenAt[i], p.type), PerPlayer = perPlayer.Contains(tokenAt[i]) });
             }
 
             foreach (var b in Bindings.Behaviours) ResolvePending(b.Fields);
@@ -588,6 +711,13 @@ namespace PortKit
                     : behaviour != null && plainTokens.TryGetValue(behaviour, out int index) ? plainBehaviours[index].id
                     : behaviour as string ?? "";
                 Bindings.Events.Add(new Bindings.EventEntry { Object = KeyOf(go), Kind = kind, Behaviour = id, Method = method ?? "" });
+            }
+            foreach (var (name, behaviour, method) in graphEvents)
+            {
+                string id = behaviour is MonoBehaviour mb ? behaviourIds[mb]
+                    : behaviour != null && plainTokens.TryGetValue(behaviour, out int index) ? plainBehaviours[index].id
+                    : behaviour as string ?? "";
+                Bindings.Events.Add(new Bindings.EventEntry { Kind = "graph", Name = name, Behaviour = id, Method = method ?? "" });
             }
 
             // ---- the relay graph, on the root, with the objects it acts on ----
@@ -869,28 +999,12 @@ namespace PortKit
             }
             if (target is AudioClip clip)
             {
-                // README: the index into that object's BS Audio Source clip list (the page plays it with PlayOneShot(index))
+                // README: the index into the clip list of the owner's object. "on" always names that holder: the behaviour may
+                // hand the clip to another object's source to play (upstream often keeps clips on a manager and plays them
+                // through each piece's own source); the relay's audio op finds it by the holder's refs index (ClipIndex)
                 var holder = owner.gameObject;
-                if (holder.GetComponent<AudioSource>() == null) holder.AddComponent<AudioSource>().playOnAwake = false;
-                var audio = holder.GetComponent(T("BS.BSAudioSource")) ?? holder.AddComponent(T("BS.BSAudioSource"));
-                var so = new SerializedObject(audio);
-                var clips = so.FindProperty("clips");
-                // "on" always names the holder: the behaviour may hand the clip to another object's source to play (upstream
-                // often keeps clips on a manager and plays them through each piece's own source), and the relay's audio op
-                // finds the clip by the holder's refs index in the holder's "PkClips" list (the graph cannot read BS Audio Source)
-                Ref(holder);
-                for (int i = 0; i < clips.arraySize; i++)
-                    if (clips.GetArrayElementAtIndex(i).objectReferenceValue == clip) return new JObject { ["$clip"] = i, ["on"] = KeyOf(holder) };
-                clips.arraySize++;
-                clips.GetArrayElementAtIndex(clips.arraySize - 1).objectReferenceValue = clip;
-                var playOnAwake = so.FindProperty("playOnAwake");
-                if (playOnAwake != null) playOnAwake.boolValue = false;
-                so.ApplyModifiedPropertiesWithoutUndo();
-                var variables = holder.GetComponent<Variables>() ?? holder.AddComponent<Variables>();
-                var mirror = variables.declarations.IsDefined(RelayGraph.ClipsVariable) ? variables.declarations.Get(RelayGraph.ClipsVariable) as AotList : null;
-                if (mirror == null) { mirror = new AotList(); variables.declarations.Set(RelayGraph.ClipsVariable, mirror); }
-                mirror.Add(clip);
-                return new JObject { ["$clip"] = clips.arraySize - 1, ["on"] = KeyOf(holder) };
+                int index = ClipIndex(holder, clip);
+                return new JObject { ["$clip"] = index, ["on"] = KeyOf(holder) };
             }
             Report.AppendLine($"   field {owner.GetType().Name}.{field}: a reference to a {target.GetType().Name} ('{target.name}') has no place in the bindings (null written)");
             return JValue.CreateNull();

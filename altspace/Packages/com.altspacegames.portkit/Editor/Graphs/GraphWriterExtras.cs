@@ -77,6 +77,65 @@ namespace PortKit
             return Out(unit, "result", typeof(Color));
         }
 
+        /// <summary>new Vector4(x, y, z, w).</summary>
+        public Val V4(object x, object y, object z, object w)
+        {
+            var ctor = typeof(Vector4).GetConstructor(new[] { typeof(float), typeof(float), typeof(float), typeof(float) });
+            var unit = Add(new InvokeMember(Use(new Member(typeof(Vector4), ctor))));
+            Feed(unit, unit.inputParameters[0].key, x);
+            Feed(unit, unit.inputParameters[1].key, y);
+            Feed(unit, unit.inputParameters[2].key, z);
+            Feed(unit, unit.inputParameters[3].key, w);
+            return Out(unit, "result", typeof(Vector4));
+        }
+
+        // ---- structs and lists (asked for by brick builder) -----------------------------------------------
+        /// <summary>
+        /// A struct of `type` with every field at its default (Visual Scripting's "Create Struct"), as a step; fill it with
+        /// SetChained. Keep() the result if it is read more than once.
+        /// </summary>
+        public Val NewStruct(Type type)
+        {
+            if (!type.IsValueType) throw new ArgumentException($"{type.Name} is not a struct");
+            var unit = Add(new CreateStruct(type));
+            Chain(unit, "enter", "exit");
+            return Out(unit, "output", type);
+        }
+
+        /// <summary>
+        /// Assigns a field or property of a struct (or object) as a step and gives back the changed target ("Set Member" with its
+        /// chainable target output): for a struct this is the way to change it, since a struct is passed by value.
+        /// `p = g.SetChained(typeof(Vector3), "y", p, 2f)`.
+        /// </summary>
+        public Val SetChained(Type owner, string name, Val target, object value)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target), "SetChained needs a target to give back");
+            var unit = Add(new SetMember(Use(new Member(owner, name))) { chainable = true });
+            Feed(unit, "target", target);
+            Feed(unit, "input", value);
+            Chain(unit, "assign", "assigned");
+            return Out(unit, "targetOutput", owner);
+        }
+
+        /// <summary>list[index] = item, as a step (a stock "Set List Item" unit).</summary>
+        public void SetListItem(Val list, object index, object item)
+        {
+            var unit = Add(new SetListItem());
+            Feed(unit, "list", list);
+            Feed(unit, "index", index);
+            Feed(unit, "item", item);
+            Chain(unit, "enter", "exit");
+        }
+
+        /// <summary>A new list holding `items` (none: an empty list; a stock "Create List" unit). Keep() it: each read makes a new list.</summary>
+        public Val NewList(params object[] items)
+        {
+            var unit = new CreateList { inputCount = items.Length };
+            Add(unit);
+            for (int i = 0; i < items.Length; i++) Feed(unit, unit.multiInputs[i].key, items[i]);
+            return Out(unit, "list", typeof(System.Collections.IList));
+        }
+
         // ---- numbers -------------------------------------------------------------------------------------
         public Val Sign(object value) => Call(typeof(Mathf), "Sign", new[] { typeof(float) }, null, value);
         public Val RoundToInt(object value) => Call(typeof(Mathf), "RoundToInt", new[] { typeof(float) }, null, value);

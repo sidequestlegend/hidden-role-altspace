@@ -45,6 +45,12 @@ export interface HostActions {
   scale(target: string, localScale: Vector3): void;
   /** Rigidbody.linearVelocity of the target (meaningful on the client that simulates the body: its owner). */
   rbVelocity(target: string, velocity: Vector3): void;
+  /**
+   * A launch: the target's Rigidbody stops being kinematic now and gets `velocity` on the second physics step after,
+   * so that the SDK's handoff for a synced body (which sets its tracked velocity, zero at rest, in its first step)
+   * cannot undo it. One pending launch per kit: a second one before the first has landed replaces it.
+   */
+  rbLaunch(target: string, velocity: Vector3): void;
   /** Rigidbody.isKinematic of the target. */
   rbKinematic(target: string, kinematic: boolean): void;
   /** A copy of the target (a template object in the kit) under the same parent, named `name`, active: `@<parent path>/<name>` addresses it. */
@@ -162,8 +168,12 @@ export class RelayHost implements HostActions {
   /** Payloads and records handed to the bridge, for tests and diagnostics. */
   payloadsSent = 0;
   recordsSent = 0;
-  /** Used instead of the relay for an object that is not in refs but that the page can reach. */
-  fallbackActive: (objKey: string, active: boolean) => boolean = () => false;
+  /**
+   * The path under the kit root of a bound object (bindings.objects), or undefined. `setActive` on a bound object
+   * outside refs goes by the relay as `@<path>`: one road for the object's whole life, in order with every other
+   * relay op, and one that can switch an object the page cannot see (an inactive one) back on.
+   */
+  pathOf: (objKey: string) => string | undefined = () => undefined;
   /** Plays a clip of the object's own list through the page when the page can reach the object. */
   fallbackClip: (objKey: string, clipIndex: number) => boolean = () => false;
 
@@ -218,7 +228,10 @@ export class RelayHost implements HostActions {
     this.value("uiColor", target, "uiColor", [relayNumber(color.r), relayNumber(color.g), relayNumber(color.b), relayNumber(color.a)]);
   }
   setActive(target: string, active: boolean): void {
-    if (!target.startsWith("@") && this.refs.indexOf(target) < 0 && this.fallbackActive(target, active)) return;
+    if (!target.startsWith("@") && this.refs.indexOf(target) < 0) {
+      const path = this.pathOf(target);
+      if (path !== undefined) target = "@" + path;
+    }
     this.value("active", target, "active", [active ? "1" : "0"]);
   }
 
@@ -257,6 +270,12 @@ export class RelayHost implements HostActions {
   }
   rbVelocity(target: string, velocity: Vector3): void {
     this.event("rbVelocity", target, [relayNumber(velocity.x), relayNumber(velocity.y), relayNumber(velocity.z)]);
+  }
+  rbLaunch(target: string, velocity: Vector3): void {
+    this.event("rbLaunch", target, [relayNumber(velocity.x), relayNumber(velocity.y), relayNumber(velocity.z)]);
+    // the body is no longer kinematic: a later rbKinematic(true) must be sent even if it was the last value sent
+    const wire = this.resolve("rbLaunch", target);
+    if (wire !== null) this.last.delete(`${wire}/rbKinematic`);
   }
   rbKinematic(target: string, kinematic: boolean): void {
     this.value("rbKinematic", target, "rbKinematic", [kinematic ? "1" : "0"]);

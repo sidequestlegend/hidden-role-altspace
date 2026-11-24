@@ -221,3 +221,50 @@ test("a change the owner had not sent yet is taken back when ownership goes firs
   assert.equal(probe(a).rollbacks, 1);
   assert.equal(probe(b).value, 5);
 });
+
+test("version(): pages that hold the same writes report the same version, so digests are compared at one version", async () => {
+  const room = new FakeRoom({ seed: 17 });
+  const g = probeGame();
+  const [a, b] = [enter(room, [g]), enter(room, [g])];
+  await untilStarted(room, [a, b], "probe");
+  probe(a).Set(1);
+  await room.run(1500);
+  const before = inst(a, "probe").version();
+  assert.equal(inst(b, "probe").version(), before, "the same writes, the same version");
+  assert.equal(inst(a, "probe").digest(), inst(b, "probe").digest());
+  // A field that ticks on its own: the writer is ahead until the other page has the write.
+  probe(a).Set(2);
+  await room.run(50); // the write goes out at the end of the tick
+  const ahead = inst(a, "probe").version();
+  assert.notEqual(ahead, before);
+  if (probe(b).value !== 2) assert.equal(inst(b, "probe").version(), before, "until the other page has the write, its version says so");
+  await room.run(1500);
+  assert.equal(inst(b, "probe").version(), ahead);
+  assert.equal(inst(b, "probe").digest(), inst(a, "probe").digest());
+  assert.ok(Number(ahead.split(":")[0]) > Number(before.split(":")[0]), "the write count only grows");
+});
+
+test("one action is one batch: writes, an event, more writes go out as one state write, then the event", async () => {
+  const room = new FakeRoom({ seed: 18 });
+  const g = probeGame();
+  const [a, b, c] = [enter(room, [g]), enter(room, [g]), enter(room, [g])];
+  await untilStarted(room, [a, b, c], "probe");
+  probe(a).Set(0, "idle");
+  await room.run(1500);
+  const sync = inst(a, "probe").sync;
+  const writes = sync.stats.writes;
+  // one handler (chess: a sound event before _EndTurn()): a write, an event, then the rest of its writes
+  probe(a).Set(1, "half");
+  probe(a).Broadcast("moved");
+  probe(a).Set(2, "done");
+  await room.run(1500);
+  assert.equal(sync.stats.writes, writes + 1, "one state write for the whole action");
+  for (const client of [b, c]) {
+    const ping = probe(client).pings.find((p) => p.args[0] === "moved");
+    assert.ok(ping, client.name);
+    assert.deepEqual([ping!.value, ping!.text], [2, "done"], `${client.name} ran the event against the action's whole state`);
+    assert.equal(probe(client).value, 2);
+  }
+  // the sender ran it at once (All runs here first), as before
+  assert.deepEqual(probe(a).pings.map((p) => p.args[0]), ["moved"]);
+});

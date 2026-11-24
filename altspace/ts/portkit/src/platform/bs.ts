@@ -45,7 +45,7 @@ export interface PageEnv {
   /** The page API namespace. */
   BS: any;
   /** The window: `addEventListener("bs-loaded")` and the registry property `__pk1`. */
-  win: { addEventListener(type: string, handler: () => void): void; __pk1?: any };
+  win: { addEventListener(type: string, handler: () => void): void; __pk1?: any; __pk1_debug?: boolean };
   doc: { querySelectorAll(selector: string): ArrayLike<any>; documentElement: any };
   MutationObserver: new (callback: (records: any[]) => void) => { observe(target: any, options: any): void; disconnect(): void };
   storage: { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void; length: number; key(index: number): string | null } | null;
@@ -96,11 +96,21 @@ export interface BsOptions {
   kitFindMs: number;
   /** User-state leaves are sent at most this often each. */
   userFlushMs: number;
+  /** How long the one reading of the local head's position at start may take (localPosition). */
+  headProbeMs: number;
+  /**
+   * Space-state bytes handed to the app and not yet seen back from the room, at most (see queueSet). The app sends what
+   * it holds in batches of up to 64 writes of up to 16 KiB each, and the relay closes the socket on a message over
+   * 256 KiB (RELAY.md, code 1009): what the page lets out of its own queue is what bounds a batch.
+   */
+  stateBudgetBytes: number;
+  /** A write not seen back after this long stops counting against the budget (it failed quietly, or was a no-op). */
+  stateEchoMs: number;
   /** Debug logging to the console. */
   verbose: boolean;
 }
 
-const DEFAULT_BS_OPTIONS: BsOptions = { joinTimeoutMs: 30000, kitTimeoutMs: 120000, kitFindMs: 20000, userFlushMs: 200, verbose: false };
+const DEFAULT_BS_OPTIONS: BsOptions = { joinTimeoutMs: 30000, kitTimeoutMs: 120000, kitFindMs: 20000, userFlushMs: 200, headProbeMs: 5000, stateBudgetBytes: 96 * 1024, stateEchoMs: 4000, verbose: false };
 
 const HOST_EVENTS: Partial<Record<HostEventKind, string>> = {
   click: "click",
@@ -153,12 +163,23 @@ export class BsPlatform implements Platform {
   private readonly sessionHandlers: Array<() => void> = [];
   private readonly snippetHandlers: Array<() => void> = [];
   private readonly poseHandlers: Array<(poses: LocalPoses) => void> = [];
+  private readonly teleportHandlers: Array<(position: Vector3) => void> = [];
+  private headReading: Promise<Vector3 | null> | null = null;
   private readonly inputHandlers: Array<(event: InputEvent) => void> = [];
   private readonly wrappers = new WeakMap<object, SnippetElement>();
   /** uid -> the page's UserData object for everyone in the room. */
   private readonly roster = new Map<string, any>();
   private pendingPublic: Record<string, string> | null = null;
   private pendingProtected: Record<string, string> | null = null;
+  /** Turns of writes not handed to the app yet (each turn is one action's writes: kept together while it fits). */
+  private readonly stateQueue: Array<{ scope: "public" | "protected"; writes: Array<[string, string]> }> = [];
+  /** Handed to the app, not yet seen back: path -> bytes and when. */
+  private readonly unechoed = new Map<string, { bytes: number; at: number }>();
+  private unechoedBytes = 0;
+  private stateTimer = 0;
+  private warnedSplit = false;
+  /** For tests and diagnostics: handoffs to the app, and the largest one in bytes. */
+  readonly stateStats = { handoffs: 0, largest: 0, deferred: 0 };
   private readonly pendingUser = new Map<string, string | null>();
   private userTimer = 0;
   private userLastFlush = -Infinity;
@@ -246,9 +267,14 @@ export class BsPlatform implements Platform {
     return true;
   }
 
+  /**
+   * Debugging hooks (state digests, a game's own test helpers such as "remove a cup" or "make me the saboteur") reach
+   * the page registry only on a test page: one that set `window.__pk1_debug = true` before the script ran (the Play-mode
+   * kit test's page does). A published page never does, so a shipped script exposes nothing to call.
+   */
   expose(key: string, hooks: Record<string, unknown> | null): void {
     const registry = this.registry();
-    if (hooks) registry.debug[key] = hooks;
+    if (hooks && this.env.win.__pk1_debug === true) registry.debug[key] = hooks;
     else delete registry.debug[key];
   }
 
@@ -367,6 +393,11 @@ export class BsPlatform implements Platform {
         this.emitUser(sid, change.path, value);
       }
     });
+    on("player-teleported", (detail) => {
+      if (!detail || !detail.position) return;
+      const position = from3(detail.position);
+      for (const handler of this.teleportHandlers.slice()) handler(position);
+    });
     on("pose-update", (detail) => {
       if (!detail || !detail.head) return;
       const poses: LocalPoses = { head: pose(detail.head), leftHand: pose(detail.leftHand), rightHand: pose(detail.rightHand) };
@@ -472,6 +503,10 @@ export class BsPlatform implements Platform {
 
   /** Applies one change to the mirror and tells the listeners, unless the mirror already says so. */
   private applyChange(path: string, value: string | undefined): void {
+    if (this.unechoed.has(path)) {
+      this.release(path);
+      if (this.stateQueue.length) Promise.resolve().then(() => this.pumpState());
+    }
     const before = this.mirror.get(path);
     if (before === value) return;
     if (value === undefined) this.mirror.delete(path);
@@ -559,15 +594,84 @@ export class BsPlatform implements Platform {
     if (isProtected) (this.pendingProtected ??= {})[path] = value;
     else (this.pendingPublic ??= {})[path] = value;
     if (!first) return;
-    // One bridge message for everything written in this turn.
+    // Everything written in this turn (one action) goes to the app together, as one bridge call, while it fits.
     Promise.resolve().then(() => {
       const pub = this.pendingPublic;
       const prot = this.pendingProtected;
       this.pendingPublic = null;
       this.pendingProtected = null;
-      if (pub) this.attempt("SetPublicSpaceProps", () => this.scene.SetPublicSpaceProps(pub));
-      if (prot) this.attempt("SetProtectedSpaceProps", () => this.scene.SetProtectedSpaceProps(prot));
+      if (pub) this.stateQueue.push({ scope: "public", writes: Object.entries(pub) });
+      if (prot) this.stateQueue.push({ scope: "protected", writes: Object.entries(prot) });
+      this.pumpState();
     });
+  }
+
+  /**
+   * Hands queued turns to the app while the bytes it holds that the room has not echoed stay within the budget. The
+   * app merges whatever it holds into its next batch (64 writes of up to 16 KiB: over the relay's 256 KiB), and does
+   * so even more while it backs off, so the page's own queue is the only place a batch's size can be bounded. A turn
+   * bigger than the budget is split (logged once); the leaves of one sync slot are one write each and never split.
+   */
+  private pumpState(): void {
+    const budget = this.options.stateBudgetBytes;
+    const now = this.env.now();
+    for (const [path, entry] of this.unechoed) {
+      if (now - entry.at >= this.options.stateEchoMs) this.release(path);
+    }
+    while (this.stateQueue.length) {
+      const turn = this.stateQueue[0]!;
+      const room = budget - this.unechoedBytes;
+      const size = (w: [string, string]) => utf8Length(w[0]) + utf8Length(w[1]) + 16;
+      const total = turn.writes.reduce((sum, w) => sum + size(w), 0);
+      let take: Array<[string, string]>;
+      if (total <= room) take = turn.writes.splice(0);
+      else if (this.unechoedBytes > 0) break; // wait for what is out to come back
+      else {
+        // larger than the whole budget: as much as fits (at least one write)
+        take = [];
+        let bytes = 0;
+        while (turn.writes.length && (take.length === 0 || bytes + size(turn.writes[0]!) <= budget)) {
+          bytes += size(turn.writes[0]!);
+          take.push(turn.writes.shift()!);
+        }
+        if (!this.warnedSplit) {
+          this.warnedSplit = true;
+          this.log("info", `one turn wrote ${total} bytes of space state, more than the ${budget} bytes sent at once: it goes in parts`);
+        }
+      }
+      if (!turn.writes.length) this.stateQueue.shift();
+      const props: Record<string, string> = {};
+      let bytes = 0;
+      for (const w of take) {
+        props[w[0]] = w[1];
+        bytes += size(w);
+        if (this.mirror.get(w[0]) === w[1]) continue; // the room has it already: no echo will come
+        this.release(w[0]);
+        this.unechoed.set(w[0], { bytes: size(w), at: now });
+        this.unechoedBytes += size(w);
+      }
+      this.stateStats.handoffs++;
+      this.stateStats.largest = Math.max(this.stateStats.largest, bytes);
+      if (turn.scope === "protected") this.attempt("SetProtectedSpaceProps", () => this.scene.SetProtectedSpaceProps(props));
+      else this.attempt("SetPublicSpaceProps", () => this.scene.SetPublicSpaceProps(props));
+    }
+    if (this.stateQueue.length) {
+      this.stateStats.deferred++;
+      if (!this.stateTimer) {
+        this.stateTimer = this.env.setTimeout(() => {
+          this.stateTimer = 0;
+          this.pumpState();
+        }, 250);
+      }
+    }
+  }
+
+  /** A handed-off write came back (or failed, or timed out): it no longer counts against the budget. */
+  private release(path: string): void {
+    const entry = this.unechoed.get(path);
+    if (!entry) return;
+    this.unechoed.delete(path);
+    this.unechoedBytes -= entry.bytes;
   }
 
   async stateDelete(path: string): Promise<void> {
@@ -605,6 +709,10 @@ export class BsPlatform implements Platform {
   }
 
   private emitError(path: string, code: string, final: boolean): void {
+    if (final && this.unechoed.has(path)) {
+      this.release(path);
+      if (this.stateQueue.length) Promise.resolve().then(() => this.pumpState());
+    }
     for (const handler of this.errorHandlers.slice()) {
       if (path.startsWith(handler.prefix)) this.attempt("state error handler", () => handler.fn(path, code, final));
     }
@@ -806,7 +914,7 @@ export class BsPlatform implements Platform {
           );
         }
         if (object.seat) seat = await go.AddComponent(new BS.Seat({}));
-        objects.set(object.key, new BsHostObject(this, object.key, object.path, go, synced, seat));
+        objects.set(object.key, new BsHostObject(this, object.key, object.path, go, synced, seat, object.networkId, object.attachNetworkId ?? ""));
       } catch (error) {
         this.log("warn", `kit object ${object.key} (${object.path}): ${describe(error)}`);
         missing.push(object.key);
@@ -929,6 +1037,67 @@ export class BsPlatform implements Platform {
     return subscribe(this.poseHandlers, handler);
   }
 
+  onTeleported(handler: (position: Vector3) => void): Unsubscribe {
+    return subscribe(this.teleportHandlers, handler);
+  }
+
+  localPosition(): Promise<Vector3 | null> {
+    if (!this.headReading) this.headReading = this.readHead();
+    return this.headReading;
+  }
+
+  /**
+   * The page has no call that answers where the local player is. A throwaway object attached to the local
+   * player's head (BS.AttachedObject, NonPhysics, attachment point Head = 0) is moved there by the app; its
+   * transform, read once, is the head's position. The object starts at the origin, so the first reading away
+   * from it is the answer. Then the object goes. UNVERIFIED in the app (checked in editor Play mode only, see
+   * spikes/RESULTS.md S7).
+   */
+  private async readHead(): Promise<Vector3 | null> {
+    const BS = this.env.BS;
+    const uid = this.local().uid;
+    let probe: any = null;
+    const answer = deferred<Vector3 | null>();
+    const timer = this.env.setTimeout(() => answer.resolve(null), this.options.headProbeMs);
+    try {
+      probe = new BS.GameObject("pk1-head-probe");
+      await probe.Async();
+      const attached = await probe.AddComponent(
+        new BS.AttachedObject({
+          uid,
+          attachmentPosition: new BS.Vector3(0, 0, 0),
+          attachmentRotation: new BS.Quaternion(0, 0, 0, 1),
+          attachmentType: 1, // NonPhysics
+          attachmentPoint: 0, // Head
+          autoSync: false,
+          jointAvatar: false,
+        }),
+      );
+      const PN = this.api.PN ?? this.api.PropertyName;
+      const look = () => {
+        const p = probe.transform?.position;
+        if (p && (Number(p.x) || Number(p.y) || Number(p.z))) answer.resolve(from3(p));
+      };
+      await probe.WatchTransform([PN.position], look);
+      await attached.Attach(uid);
+      look();
+      return await answer.promise;
+    } catch (error) {
+      this.log("info", `the local position could not be read at start: ${describe(error)}`);
+      return null;
+    } finally {
+      this.env.clearTimeout(timer);
+      answer.resolve(null);
+      if (probe) {
+        try {
+          probe.Destroy();
+        } catch {
+          /* gone already */
+        }
+      }
+    }
+  }
+
   onInput(handler: (event: InputEvent) => void): Unsubscribe {
     return subscribe(this.inputHandlers, handler);
   }
@@ -993,14 +1162,18 @@ class BsHostObject implements HostObject {
   private readonly seat: any;
   private readonly watchers: Array<(pose: Pose) => void> = [];
   private watching = false;
+  private readonly attachNetworkId: string;
+  private hasNetworkId: boolean;
 
-  constructor(platform: BsPlatform, key: string, path: string, go: any, synced: any, seat: any) {
+  constructor(platform: BsPlatform, key: string, path: string, go: any, synced: any, seat: any, networkId = "", attachNetworkId = "") {
     this.platform = platform;
     this.key = key;
     this.path = path;
     this.go = go;
     this.synced = synced;
     this.seat = seat;
+    this.hasNetworkId = networkId !== "";
+    this.attachNetworkId = attachNetworkId;
   }
 
   on(kind: HostEventKind, handler: (detail: HostEventDetail) => void): Unsubscribe {
@@ -1110,10 +1283,23 @@ class BsHostObject implements HostObject {
 
   /** UNVERIFIED in Play mode: BS.AttachedObject added to a kit object, attachment point set, then Attach(local user id). */
   attachToHand(side: HandSide, position: Vector3, rotation: Quaternion): void {
+    this.attach(side === 0 ? 1 : 2, position, rotation, false); // LeftHand, RightHand
+  }
+
+  /** UNVERIFIED in Play mode: as attachToHand, at the head (attachment point 0); with autoSync the app shows it to others. */
+  attachToHead(position: Vector3, rotation: Quaternion, autoSync: boolean): void {
+    this.attach(0, position, rotation, autoSync);
+  }
+
+  private attach(point: number, position: Vector3, rotation: Quaternion, autoSync: boolean): void {
     const BS = this.platform.api;
     const uid = this.platform.local().uid;
     void (async () => {
       try {
+        if (autoSync && !this.hasNetworkId && this.attachNetworkId) {
+          await this.go.SetNetworkId(this.attachNetworkId);
+          this.hasNetworkId = true;
+        }
         if (!this.attached) {
           this.attached = await this.go.AddComponent(
             new BS.AttachedObject({
@@ -1121,15 +1307,16 @@ class BsHostObject implements HostObject {
               attachmentPosition: new BS.Vector3(position.x, position.y, position.z),
               attachmentRotation: new BS.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
               attachmentType: 1, // NonPhysics
-              attachmentPoint: side === 0 ? 1 : 2, // LeftHand, RightHand
-              autoSync: false,
+              attachmentPoint: point, // Head 0, LeftHand 1, RightHand 2
+              autoSync,
               jointAvatar: false,
             }),
           );
         } else {
-          this.attached.attachmentPoint = side === 0 ? 1 : 2;
+          this.attached.attachmentPoint = point;
           this.attached.attachmentPosition = new BS.Vector3(position.x, position.y, position.z);
           this.attached.attachmentRotation = new BS.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
+          this.attached.autoSync = autoSync;
         }
         await this.attached.Attach(uid);
       } catch (error) {

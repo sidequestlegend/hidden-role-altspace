@@ -3,15 +3,9 @@
 //   HiddenRole/Check Walkable     the station's colliders against the rules' walkable test (Logs/hiddenrole_walkable.txt)
 //   HiddenRole/Kit Stats          what the kit draws: renderers, materials, triangles, textures (Logs/hiddenrole_stats.txt)
 //
-// and three Play-mode test commands (PKTEST CMD <id> ...), added to portkit's KitPlayTest:
+// and one Play-mode test command (PKTEST CMD <id> ...), added to portkit's KitPlayTest (walking, where and place are
+// portkit's own now, InputSim):
 //
-//   walk <x> <z> [speed]   the Play-mode player walks to a world point as a body would: a capsule (radius 0.25 m, 1.7 m
-//                          tall) moved at walking speed (default 3 m/s) that slides along whatever solid it meets, and
-//                          stands still while the page has movement locked. The SDK's desktop player is a fly camera
-//                          that passes through walls, so this is the test's own walker; what it reports ("reached",
-//                          "blocked by ...") is what the kit's colliders allow. Answers when it arrives or is stopped.
-//   where                  the desktop player's feet and camera position
-//   place <x> <y> <z>      put the desktop player's feet there (an arrival at the world's spawn)
 //   stats                  the Game view's last frame: triangles, batches, SetPass calls (UnityStats)
 using System;
 using System.Collections;
@@ -37,112 +31,20 @@ namespace HiddenRole
 
         static HiddenRoleTools()
         {
-            KitPlayTest.Commands["walk"] = Walk;
-            KitPlayTest.Commands["where"] = (a, reply) => { reply(Where()); return null; };
-            // place <x> <y> <z>: the desktop player's feet put at a world point (where an arrival appears: the world's spawn)
-            KitPlayTest.Commands["place"] = (a, reply) =>
-            {
-                var p = Player();
-                if (p == null) { reply("error: no desktop player"); return null; }
-                p.position = new Vector3(float.Parse(a[0], CultureInfo.InvariantCulture), float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture));
-                reply("ok " + Where());
-                return null;
-            };
             KitPlayTest.Commands["stats"] = (a, reply) => { reply(Stats()); return null; };
         }
 
         static string F(float v) => v.ToString("F2", CultureInfo.InvariantCulture);
 
-        /// <summary>The SDK's desktop player (BS.BSDesktopController.Instance), found by name so this file needs no SDK reference.</summary>
-        static Transform Player()
-        {
-            var type = GraphTypes.Find("BS.BSDesktopController");
-            var instance = type?.GetProperty("Instance", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null) as Component;
-            return instance != null ? instance.transform : null;
-        }
-
-        static string Where()
-        {
-            var p = Player();
-            if (p == null) return "error: no desktop player";
-            var cam = Camera.main;
-            return $"{F(p.position.x)} {F(p.position.y)} {F(p.position.z)}" + (cam != null ? $" camera {F(cam.transform.position.x)} {F(cam.transform.position.y)} {F(cam.transform.position.z)}" : "");
-        }
-
         static string Stats() =>
             $"triangles {UnityStats.triangles} vertices {UnityStats.vertices} batches {UnityStats.batches} drawcalls {UnityStats.drawCalls} " +
             $"setpass {UnityStats.setPassCalls} shadowcasters {UnityStats.shadowCasters} frame {UnityStats.frameTime * 1000:F1}ms render {UnityStats.renderTime * 1000:F1}ms";
-
-        /// <summary>The client's movement lock (scene.SetCanMove), as the SDK's own player reads it.</summary>
-        static bool CanMove()
-        {
-            var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("SideQuest.FlexaBody.ActionsSystem", false)).FirstOrDefault(t => t != null);
-            var field = type?.GetField("canMove", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-            return field == null || (bool)field.GetValue(null);
-        }
 
         static void Capsule(Vector3 feet, out Vector3 a, out Vector3 b)
         {
             a = feet + Vector3.up * (StepUp + BodyRadius);
             b = feet + Vector3.up * (BodyHeight - BodyRadius);
         }
-
-        static IEnumerator Walk(string[] args, Action<string> reply)
-        {
-            var player = Player();
-            if (player == null) { reply("error: no desktop player"); yield break; }
-            var target = new Vector3(float.Parse(args[0], CultureInfo.InvariantCulture), 0, float.Parse(args[1], CultureInfo.InvariantCulture));
-            float speed = args.Length > 2 ? float.Parse(args[2], CultureInfo.InvariantCulture) : 3f;
-            double last = EditorApplication.timeSinceStartup;
-            double give = last + Vector3.Distance(Flat(player.position), target) / speed * 2 + 6;
-            double lastProgress = last;
-            float best = float.MaxValue;
-            string blocker = "";
-            while (true)
-            {
-                yield return null;
-                if (!EditorApplication.isPlaying || player == null) { reply("error: Play mode ended"); yield break; }
-                double now = EditorApplication.timeSinceStartup;
-                float dt = Mathf.Min(0.1f, (float)(now - last));
-                last = now;
-                var here = player.position;
-                var flat = target - Flat(here);
-                flat.y = 0;
-                float left = flat.magnitude;
-                if (left < 0.12f) { reply($"ok reached {F(here.x)} {F(here.z)}"); yield break; }
-                if (left < best - 0.02f) { best = left; lastProgress = now; }
-                if (now - lastProgress > 1.5 || now > give)
-                {
-                    reply($"blocked at {F(here.x)} {F(here.z)}, {F(left)} m short" + (blocker.Length > 0 ? " by " + blocker : "") + (CanMove() ? "" : " (movement locked)"));
-                    yield break;
-                }
-                if (!CanMove()) continue;
-                var move = flat.normalized * Mathf.Min(left, speed * dt);
-                // move and slide: up to three tries along what was hit
-                for (int i = 0; i < 3 && move.sqrMagnitude > 1e-8f; i++)
-                {
-                    Capsule(here, out var a, out var b);
-                    if (Physics.CapsuleCast(a, b, BodyRadius * 0.98f, move.normalized, out var hit, move.magnitude + 0.01f, SolidMask, QueryTriggerInteraction.Ignore))
-                    {
-                        blocker = hit.collider.name + " " + hit.collider.GetType().Name;
-                        float go = Mathf.Max(0, hit.distance - 0.01f);
-                        here += move.normalized * go;
-                        var rest = move - move.normalized * go;
-                        var normal = hit.normal;
-                        normal.y = 0;
-                        move = normal.sqrMagnitude > 1e-6f ? Vector3.ProjectOnPlane(rest, normal.normalized) : Vector3.zero;
-                    }
-                    else
-                    {
-                        here += move;
-                        move = Vector3.zero;
-                    }
-                }
-                player.position = here;
-            }
-        }
-
-        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0, v.z);
 
         // ------------------------------------------------------------------ the collider check
 

@@ -18,12 +18,13 @@ import {
 } from "../src/index.ts";
 import type { GameDefinition, GameInstance } from "../src/instance.ts";
 import type { FakeClient, FakeRoom } from "../src/platform/fake.ts";
+import type { BsOptions } from "../src/platform/bs.ts";
 
 /** A behaviour with a few synced fields that counts every callback it gets. */
 export class Probe extends Behaviour {
   static override synced = ["value", "text", "list"];
   /** What other clients may run here. `Set` and `_Private` are public and private methods that are not listed. */
-  static override networkCallable = ["Ping", "Add", "RequestSerialization", "constructor", "_Private"];
+  static override networkCallable = ["Ping", "Add", "Deal", "Mark", "RequestSerialization", "constructor", "_Private"];
   value = 0;
   text = "";
   list: number[] = [];
@@ -38,7 +39,7 @@ export class Probe extends Behaviour {
   masters: Array<number | null> = [];
   posts: SerializationResult[] = [];
   refusals: WriteRefusal[] = [];
-  pings: Array<{ args: unknown[]; from: number | null; uid: string }> = [];
+  pings: Array<{ args: unknown[]; from: number | null; uid: string; value?: number; text?: string }> = [];
   commands: Array<{ name: string; args: unknown[]; from: number | null }> = [];
   acks: number[] = [];
   startKinds: StartKind[] = [];
@@ -147,7 +148,7 @@ export class Probe extends Behaviour {
   }
   Ping(...args: unknown[]): void {
     const from = this.Networking.CallingPlayer;
-    this.pings.push({ args, from: from ? from.playerId : null, uid: this.Networking.CallingSession?.uid ?? "" });
+    this.pings.push({ args, from: from ? from.playerId : null, uid: this.Networking.CallingSession?.uid ?? "", value: this.value, text: this.text });
   }
   Broadcast(...args: unknown[]): void {
     this.SendCustomNetworkEvent(NetworkEventTarget.All, "Ping", ...args);
@@ -162,6 +163,16 @@ export class Probe extends Behaviour {
     this.Networking.SetOwner(this.Networking.LocalPlayer, this.gameObject);
     this.value += amount;
     this.RequestSerialization();
+  }
+  /** A command whose handler publishes a user-state record: the referee begins a dealt draw. */
+  Deal(label: string): void {
+    this.commands.push({ name: "Deal", args: [label], from: this.Networking.CallingPlayer?.playerId ?? null });
+    this.Secrets.beginDeal(label, []);
+  }
+  /** A command whose handler writes the referee's own user state directly (any runtime record would do). */
+  Mark(n: number): void {
+    this.commands.push({ name: "Mark", args: [n], from: this.Networking.CallingPlayer?.playerId ?? null });
+    this.Secrets.publish("mark", String(n));
   }
   Later(): void {
     this.delayed.push(`Later@${this.Time.time.toFixed(2)}`);
@@ -328,8 +339,8 @@ export function probeGame(slug = "probe", definition: Partial<GameDefinition> = 
 }
 
 /** A player arrives with `games` on their page, one element each (or as `elements` says). */
-export function enter(room: FakeRoom, games: TestGame[], options: { uid?: string; name?: string; device?: string; elements?: Array<{ slug: string; attributes?: Record<string, string> }> } = {}): FakeClient {
-  const client = room.join({ uid: options.uid, name: options.name, device: options.device });
+export function enter(room: FakeRoom, games: TestGame[], options: { uid?: string; name?: string; device?: string; elements?: Array<{ slug: string; attributes?: Record<string, string> }>; adapter?: Partial<BsOptions> } = {}): FakeClient {
+  const client = room.join({ uid: options.uid, name: options.name, device: options.device, adapter: options.adapter });
   for (const g of games) {
     room.defineKit(g.kit, g.bindings);
     client.load(g.game, g.bindings);

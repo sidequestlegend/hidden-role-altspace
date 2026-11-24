@@ -1,5 +1,5 @@
 // The hidden-role kit: an undersea station generated from ts/src/station-map.json, its boards, consoles, markers, the
-// muster post and ring, the observer lounge 70 m below, and the boarding pad outside. Nothing comes from the upstream
+// muster post and ring, the bunkroom (the observer lounge) 70 m below, and the boarding pad outside. Nothing comes from the upstream
 // project but the map's numbers (PORT.md section 6, "The kit"); every model, texture and tone is made by KitArt.
 using System;
 using System.Collections.Generic;
@@ -22,7 +22,7 @@ namespace HiddenRole
         public const string MapPath = "ts/src/station-map.json";
         /// <summary>Floor to ceiling, metres (the map is 1 u = 1 m). Corridors are as the map draws them: 1.1 to 4.1 m wide.</summary>
         public const float WallHeight = 3.2f;
-        /// <summary>The observer lounge: this far below the station (RuntimeHud LOUNGE_OFFSET).</summary>
+        /// <summary>The bunkroom (observer lounge): this far below the station (RuntimeHud LOUNGE_OFFSET).</summary>
         public static readonly Vector3 LoungeOffset = new Vector3(0, -70, 0);
         /// <summary>The boarding pad's sign, outside the station's south wall (map units; RuntimeHud ENTRY_POINT stands in front of it).</summary>
         public static readonly Vector2 EntrySign = new Vector2(6f, -55.4f);
@@ -37,9 +37,11 @@ namespace HiddenRole
             "Hidden Role (working title): 4 to 10 players, with optional bots. Technicians keep an undersea research station running " +
             "through a timed shift of jobs; one hidden saboteur eliminates, raises faults and slips through service hatches. A downed " +
             "player found, or the muster post pressed, gathers everyone living at the muster ring to talk and vote. The station takes " +
-            "over the world (150 x 116 m); the downed watch from a lounge 70 m below. Rules translated from MIT-licensed C# by " +
+            "over the world (150 x 116 m); the downed watch from a bunkroom 70 m below. Rules translated from MIT-licensed C# by " +
             "chocowriter and dmjdesu; station, art and tones made for this port. Credits on the hub board.";
         public override bool Single => true;
+        /// <summary>The photo shows the station only (the bunkroom 70 m below would shrink it to a speck).</summary>
+        public override string PhotoRoot => "Station";
         /// <summary>5 cm up, so the station's floor never fights a host world's ground at 0.</summary>
         public override string SnippetPosition => "0 0.05 0";
         public override IReadOnlyList<(string name, string value)> SnippetSettings => new[]
@@ -171,7 +173,7 @@ namespace HiddenRole
             var cuts = map["cuts"].Select(c => R(Floats(c))).ToList();
             props = map["props"].Select(p => R(Floats(p["rect"]))).ToList();
             grid = new OpenGrid(walk, cuts);
-            var gallery = R(Floats(map["rooms"].First(r => (string)r["id"] == "gallery")["rect"]));
+            var gallery = R(Floats(map["rooms"].First(r => (string)r["id"] == "lantern-dome")["rect"]));
             var xCuts = Enumerable.Range(1, RegionColumns - 1).Select(i => (double)bounds.xMin + bounds.width * i / RegionColumns).ToArray();
             var yCuts = Enumerable.Range(1, RegionRows - 1).Select(i => (double)bounds.yMin + bounds.height * i / RegionRows).ToArray();
             var shell = Shell.Build(grid, WallHeight, 0f, Region,
@@ -418,8 +420,8 @@ namespace HiddenRole
             "The station is generated from that project's map data; every name, word and look here is this port's own.\n" +
             "Port and runtime (portkit): MIT. Source: github.com/sidequestlegend/hidden-role-altspace\n" +
             "Station models, textures and tones: made for this port from formulas, no outside files.\n" +
-            "Text: Liberation Sans (SIL Open Font License 1.1).\n" +
-            "No voice isolation exists here: the downed are sent to a lounge 70 m below, out of earshot.\n" +
+            "Text: Liberation Sans, digitized data copyright (c) 2010 Google Corporation, copyright (c) 2012 Red Hat, Inc. (SIL Open Font License 1.1).\n" +
+            "No voice isolation exists here: while a match runs, the downed and onlookers are kept in a bunkroom 70 m below, beyond the 50 m a voice can carry.\n" +
             "Click to close.";
 
         // ------------------------------------------------------------------ the personal panel and the blackout shell
@@ -500,12 +502,12 @@ namespace HiddenRole
                 voteLabels.Add(Text(label));
                 stage.Event(b, "click", hud, "ClickVote" + i);
             }
-            var abstain = Button(board.transform, "Abstain", "Abstain", new Vector3(0.67f, -0.56f, -0.005f), 1.2f, 0.17f, "buttonWarn", 0.65f);
+            var abstain = Button(board.transform, "Pass", "Pass", new Vector3(0.67f, -0.56f, -0.005f), 1.2f, 0.17f, "buttonWarn", 0.65f);
             stage.Object(abstain, key: "abstainButton");
             stage.Event(abstain, "click", hud, "ClickAbstain");
         }
 
-        // ------------------------------------------------------------------ the observer lounge, 70 m below
+        // ------------------------------------------------------------------ the bunkroom (observer lounge), 70 m below
 
         void Lounge(Transform lounge)
         {
@@ -526,7 +528,7 @@ namespace HiddenRole
             var board = stage.Create("Board", lounge);
             board.transform.localPosition = new Vector3(0, 1.75f, 3.9f);
             Draw(board.transform, "Back", KitArt.Quad(), "board", new Vector3(0, 0, 0.01f), new Vector3(3.2f, 2.1f, 1));
-            var text = Label(board.transform, "Text", "Observer lounge", 3.0f, 1.95f, 0.9f, Color.white, TextAlignmentOptions.TopLeft, true);
+            var text = Label(board.transform, "Text", "Off-shift bunkroom", 3.0f, 1.95f, 0.9f, Color.white, TextAlignmentOptions.TopLeft, true);
             text.transform.localPosition = new Vector3(-0.45f, 0, 0);
             text.GetComponent<TextMeshPro>().rectTransform.sizeDelta = new Vector2(2.1f, 1.95f);
             stage.Object(text, key: "loungeText");

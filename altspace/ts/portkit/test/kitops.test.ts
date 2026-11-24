@@ -63,6 +63,12 @@ test("audio pitch and volume, a scaled one-shot and Animator.enabled reach the g
       ["despawn", "@Root/cup 3"],
     ],
   );
+  // A launch: one op (kinematic off now, the velocity two physics steps later, in the graph); kinematic can be set again after.
+  host.rbLaunch("speaker", new Vector3(1, 2.5, 0));
+  host.rbKinematic("speaker", true);
+  await room.run(200);
+  assert.deepEqual(graph.events.slice(-1).map((e) => [e.op, e.target, ...e.args]), [["rbLaunch", "speaker", "1", "2.5", "0"]]);
+  assert.equal(graph.records.filter((r) => r.op === "rbKinematic").length, 2, "rbKinematic(true) goes again after a launch");
   assert.deepEqual(a.notes.filter((n) => n.startsWith("graph")), []);
 });
 
@@ -224,6 +230,13 @@ test("per-player behaviours get their own object events on the local player's co
   await room.run(200);
   const attached = () => [...a.attached.entries()].filter(([path]) => path.endsWith("/Root/grabClub")).map(([, at]) => at);
   assert.deepEqual(attached(), [{ uid: a.uid, point: 2 }], "attached to a's right hand");
+  club.Detach();
+  await room.run(200);
+  assert.deepEqual(attached(), []);
+  // At the head, shown to the others (autoSync): the object takes its per-instance network id first.
+  club.AttachToHead(new Vector3(0, 0.3, 0), undefined, true);
+  await room.run(200);
+  assert.deepEqual(attached(), [{ uid: a.uid, point: 0, autoSync: true, networkId: "pk1/pp/0/grabClub" }], "on a's head, synced");
   club.Detach();
   await room.run(200);
   assert.deepEqual(attached(), []);

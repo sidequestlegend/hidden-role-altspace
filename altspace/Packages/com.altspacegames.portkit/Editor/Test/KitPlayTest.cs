@@ -167,15 +167,23 @@ namespace PortKit
                 string page = File.ReadAllText(BackupPath);
                 bool live = (bool?)config["live"] ?? false;
                 var elements = new StringBuilder();
+                // a test page: the runtime exposes its debugging hooks (window.__pk1.debug) only where this is set first
+                elements.Append("  <script>window.__pk1_debug = true;</script>\n");
                 foreach (var element in (JArray)config["elements"] ?? new JArray())
                 {
                     if (live && ((string)element).Contains("{SERVER}")) throw new Exception("a live test names the published script and no bundles: no {SERVER} in its elements");
                     // A bundle's address names its content ("?v=<start of its sha1>"): the SDK keeps downloaded bundles by address,
                     // and a rebuilt kit under the old address is answered from that cache (seen: one HEAD request, no GET).
-                    string text = System.Text.RegularExpressions.Regex.Replace((string)element, @"\{SERVER\}/kits/([^""?\s]+)", m =>
+                    // A /web/ file (the game's script) is versioned the same way: the page's browser caches it by address too
+                    // (rp-toolkit saw a stale script in Play mode). The server ignores the query.
+                    string text = System.Text.RegularExpressions.Regex.Replace((string)element, @"\{SERVER\}/(kits|web)/([^""?\s]+)(\?)?", m =>
                     {
-                        string file = $"{PlayPort.MainRoot}/{KitBundles.BundleRoot}/{m.Groups[1].Value}";
-                        return File.Exists(file) ? $"{m.Value}?v={KitArtifacts.Sha1(File.ReadAllBytes(file)).Substring(0, 10)}" : m.Value;
+                        string root = m.Groups[1].Value == "kits" ? KitBundles.BundleRoot : "Assets/WebRoot";
+                        string file = $"{PlayPort.MainRoot}/{root}/{m.Groups[2].Value}";
+                        if (!File.Exists(file)) return m.Value;
+                        string v = "v=" + KitArtifacts.Sha1(File.ReadAllBytes(file)).Substring(0, 10);
+                        // An address with a query of its own keeps it: "x.js?a=1" -> "x.js?v=...&a=1".
+                        return m.Groups[3].Success ? $"{m.Value}{v}&" : $"{m.Value}?{v}";
                     });
                     elements.Append("  ").Append(text.Replace("{SERVER}", TestServer.Address)).Append('\n');
                 }

@@ -8,11 +8,12 @@
 //
 // Deliberate differences from upstream, each named in PORT.md "Deliberate differences":
 //   D1  an eliminated technician's unfinished jobs leave the total, so one early elimination no longer makes the job
-//       win impossible (upstream counted them forever, F29/F30);
+//       win impossible (upstream counted them forever, F29/F30); the total everyone is shown keeps them until the
+//       elimination has been seen (D4), so the jobs bar does not give a kill away;
 //   D2  the fourth fault (upstream's fourth sabotage type) has a countdown like the first, instead of no effect (F60);
 //   D6  the muster post and the alarm need a match in play: upstream's round flag stayed set after the end (C12);
 //   D5  nobody is forced into the hidden role (upstream made the host the hidden role by default, F7);
-//   D12 a person's ranges get `rangeSlack` added and a position that jumped is not trusted for a moment (C11).
+//   D12 a person's ranges get `rangeSlack` added (positions are the referee's own, moved no faster than a run: Match.ts).
 
 import { Vector2 } from "../portkit/src/index.ts";
 import { BotBrains } from "./Bots.ts";
@@ -190,10 +191,6 @@ export class MatchRules {
     return p.isBot ? 0 : this.s.rangeSlack;
   }
 
-  private settled(p: Participant): boolean {
-    return p.isBot || this.time >= p.unsettledUntil;
-  }
-
   // ---- round flow ---------------------------------------------------------------------------------------------
 
   /** StartRound. `roster` is in slot order; every entry plays. */
@@ -300,6 +297,7 @@ export class MatchRules {
     if (this.timedTaskWavesIssued >= this.s.jobWaves || this.time < this.nextTimedTaskAt) return;
     let assigned = 0;
     for (const p of this.Spawned()) {
+      if (p.role === Role.Technician && !p.isAlive && !this.seenDown.has(p.slot)) p.unseenWaveJobs++;
       if (p.state !== MatchState.Playing || !p.isAlive || p.role !== Role.Technician) continue;
       if (this.TryAssignRandomTask(p)) assigned++;
     }
@@ -400,6 +398,24 @@ export class MatchRules {
     return { completed, total };
   }
 
+  /**
+   * The jobs done and total that everyone is shown (the boards' bars). D4: a technician who is down but not yet seen
+   * to be (no muster since, body not reported) still counts as alive, with the wave jobs they would have been given;
+   * once seen, this is GetCrewTaskProgress. The win check never uses this.
+   */
+  GetPublicTaskProgress(): { completed: number; total: number } {
+    let completed = 0;
+    let total = 0;
+    for (const p of this.Spawned()) {
+      if (p.role !== Role.Technician) continue;
+      completed += p.CompletedTaskCount;
+      if (p.isAlive) total += p.assignedTaskCount;
+      else if (!this.seenDown.has(p.slot)) total += p.assignedTaskCount + p.unseenWaveJobs;
+      else total += this.quirks.deadJobsCount ? p.assignedTaskCount : p.CompletedTaskCount;
+    }
+    return { completed, total };
+  }
+
   // ---- actions ------------------------------------------------------------------------------------------------
 
   /** Player.TryUseKill + TryKill + FindKillTarget. */
@@ -407,7 +423,6 @@ export class MatchRules {
     if (killer.state !== MatchState.Playing || !killer.isAlive || !killer.IsSaboteur || !killer.IsKillReady(this.time)) return false;
     // F41: no elimination in a muster or once the shift clock has run out (upstream skipped every button then).
     if (!this.roundStarted || this.meetingActive || this.taskFailurePending) return false;
-    if (!this.settled(killer)) return false;
     const target = this.FindKillTarget(killer);
     if (!target) {
       this.status = "Nobody in reach";
@@ -440,7 +455,6 @@ export class MatchRules {
   TryUseReport(reporter: Participant): boolean {
     if (reporter.state !== MatchState.Playing || !reporter.isAlive) return false;
     if (!this.roundStarted || this.meetingActive || this.taskFailurePending) return false;
-    if (!this.settled(reporter)) return false;
     const body = this.FindReportableBody(reporter);
     if (!body) {
       this.status = "No one down in reach";
@@ -492,7 +506,6 @@ export class MatchRules {
     // D6: a match in play only (upstream's check let a muster restart a finished round).
     if (reporter.state !== MatchState.Playing) return false;
     if (this.time < this.nextEmergencyAllowedAt) return false;
-    if (!this.settled(reporter)) return false;
     if (Dist(reporter.position, this.map.MeetingPoint) > this.s.musterRange + this.slack(reporter)) return false;
     this.note({ kind: "muster", actor: reporter.slot });
     this.StartMeeting(reporter, null);
@@ -654,7 +667,6 @@ export class MatchRules {
       this.status = "Faults are cooling down";
       return false;
     }
-    if (!this.settled(saboteur)) return false;
     const near = this.map.NearestPanel(saboteur.position);
     if (!near || near.distance > this.s.faultRange + this.slack(saboteur)) {
       this.status = "No fault panel in reach";
@@ -750,7 +762,7 @@ export class MatchRules {
     for (const p of this.players) if (!p.isAlive) this.seenDown.add(p.slot);
     for (const p of this.Spawned()) p.EnterMeeting();
     this.announcement = { kind: Announcement.None, playerNumber: 0, role: Role.Unassigned, endsAt: 0 };
-    this.status = body ? `${reporter.DisplayName} raised the alarm: ${body.DisplayName} is down.` : `${reporter.DisplayName} called a muster.`;
+    this.status = body ? `${reporter.DisplayName} sounded the alarm over ${body.DisplayName}.` : `${reporter.DisplayName} called a muster.`;
   }
 
   ResolveMeeting(): void {
@@ -762,9 +774,9 @@ export class MatchRules {
       ejected.Exile();
       this.seenDown.add(ejected.slot);
       this.CancelHeldInteract(ejected);
-      this.status = `${ejected.DisplayName} was locked out.`;
+      this.status = `${ejected.DisplayName} is locked out by the vote.`;
     } else {
-      this.status = "Nobody was locked out.";
+      this.status = "The vote clears everyone.";
     }
     this.announcement = {
       kind: Announcement.MusterResult,
@@ -783,6 +795,9 @@ export class MatchRules {
     const p = this.players[slot];
     if (!p || p.gone) return;
     p.gone = true;
+    // Upstream despawned the player's object, body and all: nothing is left to report or draw.
+    p.isReportableBody = false;
+    p.bodyPosition = null;
     this.CancelHeldInteract(p);
     this.note({ kind: "left", actor: slot });
     if (this.roundStarted) this.CheckWinCondition();

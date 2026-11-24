@@ -15,6 +15,9 @@ namespace PortKit
     /// compile. Drop a one-line command into Library/PortKit/command.txt:
     ///
     ///     refresh                          re-scan assets and recompile scripts (log.txt is emptied first)
+    ///     recompile                        re-scan assets and ask the compiler to compile again whatever is not up to date (a
+    ///                                      failed assembly always is), so its messages come fresh into compile.txt
+    ///     compilefailed                    "true" or "false": EditorUtility.scriptCompilationFailed (the last compile failed)
     ///     menu:Some/Menu                   run a menu item
     ///     play / stop                      enter or leave Play mode
     ///     state                            "editing", "playing", "compiling" or "changing"
@@ -22,7 +25,8 @@ namespace PortKit
     ///     quit                             save nothing and close this editor (only ever sent to an editor we started)
     ///
     /// The outcome goes to Library/PortKit/result.txt; compiler errors and console errors are appended to
-    /// Library/PortKit/log.txt; ready.txt is rewritten after every script reload. tools/remote.sh wraps all of this.
+    /// Library/PortKit/log.txt; compile.txt holds the errors of each assembly's last compile (rewritten whenever an
+    /// assembly finishes compiling, kept across refreshes); ready.txt is rewritten after every script reload. tools/remote.sh wraps all of this.
     /// A Multiplayer Play Mode player is a clone of the project with a Library of its own
     /// (Library/VP/&lt;id&gt;/Library/PortKit), so each player has its own remote.
     /// </summary>
@@ -33,6 +37,10 @@ namespace PortKit
         static readonly string CommandPath = Dir + "/command.txt";
         static readonly string ResultPath = Dir + "/result.txt";
         static readonly string LogPath = Dir + "/log.txt";
+        static readonly string CompilePath = Dir + "/compile.txt";
+        /// <summary>The errors of each assembly's last compile (none: it compiled). A domain reload means every assembly compiled.</summary>
+        static readonly System.Collections.Generic.SortedDictionary<string, string[]> lastErrors =
+            new System.Collections.Generic.SortedDictionary<string, string[]>(StringComparer.Ordinal);
         static double nextPoll;
 
         static PortKitRemote()
@@ -52,11 +60,12 @@ namespace PortKit
 
         static void OnCompiled(string assembly, CompilerMessage[] messages)
         {
-            var errors = messages.Where(m => m.type == CompilerMessageType.Error).ToArray();
+            var errors = messages.Where(m => m.type == CompilerMessageType.Error).Select(e => $"[compile] {e.file}({e.line}): {e.message}").ToArray();
+            lastErrors[Path.GetFileNameWithoutExtension(assembly)] = errors;
+            try { File.WriteAllText(CompilePath, string.Concat(lastErrors.Values.SelectMany(lines => lines).Select(line => line + "\n"))); }
+            catch (IOException) { /* being read; the next assembly rewrites it */ }
             if (errors.Length == 0) return;
-            var sb = new StringBuilder();
-            foreach (var e in errors) sb.AppendLine($"[compile] {e.file}({e.line}): {e.message}");
-            Append(sb.ToString());
+            Append(string.Concat(errors.Select(line => line + "\n")));
         }
 
         static void OnLog(string condition, string stackTrace, LogType type)
@@ -98,6 +107,17 @@ namespace PortKit
                     File.WriteAllText(LogPath, "");
                     AssetDatabase.Refresh();
                     result = "refresh requested";
+                }
+                else if (command == "recompile")
+                {
+                    File.WriteAllText(LogPath, "");
+                    AssetDatabase.Refresh();
+                    CompilationPipeline.RequestScriptCompilation();
+                    result = "recompile requested";
+                }
+                else if (command == "compilefailed")
+                {
+                    result = EditorUtility.scriptCompilationFailed ? "true" : "false";
                 }
                 else if (command.StartsWith("menu:"))
                 {

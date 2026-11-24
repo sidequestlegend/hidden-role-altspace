@@ -403,6 +403,17 @@ export class Sync {
     this.deserialized(slot, changed, true);
   }
 
+  /** Writes every slot the local player owns and has changed (RequestSerialization), now: the end of one action. */
+  flushDirty(): void {
+    if (this.core.disposed || !this.started) return;
+    for (const slot of this.slots.values()) {
+      if (slot.mode === "none" || !slot.dirty) continue;
+      slot.dirty = false;
+      if (this.isOwner(slot)) this.write(slot);
+      else this.revert(slot);
+    }
+  }
+
   /** Serialises one slot now (used when an event must follow its state). Returns the marker of what it holds. */
   flushOne(slot: Slot): Marker | null {
     if (slot.dirty && this.started && this.isOwner(slot)) {

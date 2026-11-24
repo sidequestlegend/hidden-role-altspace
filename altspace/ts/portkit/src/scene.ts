@@ -147,7 +147,17 @@ export class GameObject {
     this.host?.attachToHand(side, position, rotation);
   }
 
-  /** Lets go of what AttachToHand attached. */
+  /**
+   * Attaches this object to the local player's head, at an offset from it (BS.AttachedObject, attachment point Head;
+   * UNVERIFIED in Play mode): a label over the player's avatar. With `autoSync` the app shows the attachment to the
+   * other players too (the object gets its per-instance network id if it has none), so each player attaches their
+   * own object (one per player: a per-player behaviour's object, or a pool) and everyone sees every label.
+   */
+  AttachToHead(position: Vector3 = new Vector3(), rotation: Quaternion = new Quaternion(), autoSync = false): void {
+    this.host?.attachToHead?.(position, rotation, autoSync);
+  }
+
+  /** Lets go of what AttachToHand or AttachToHead attached. */
   Detach(): void {
     this.host?.detach();
   }
@@ -190,8 +200,9 @@ export class ComponentRef {
 
 /** A TMP or legacy UI text. Reading `text` gives what the script last wrote. */
 export class TextRef extends ComponentRef {
-  private value = "";
-  get text(): string { return this.value; }
+  /** Null until the script first sets it: the kit's own text (a prefab placeholder) is unknown, so the first value is always sent, "" included. */
+  private value: string | null = null;
+  get text(): string { return this.value ?? ""; }
   set text(value: string) {
     const next = value === null || value === undefined ? "" : String(value);
     if (next === this.value) return;

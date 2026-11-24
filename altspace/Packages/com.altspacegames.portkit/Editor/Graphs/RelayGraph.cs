@@ -38,6 +38,9 @@ namespace PortKit
         /// </summary>
         public const string FieldVariable = "PkField";
 
+        /// <summary>Graph variables of the pending launch (rbLaunch): one per kit.</summary>
+        const string LaunchTarget = "PkLaunchTarget", LaunchVelocity = "PkLaunchVelocity", LaunchSteps = "PkLaunchSteps";
+
         /// <summary>The event kinds a graph has to relay, because the page has no event of its own for them.</summary>
         public static readonly string[] RelayedKinds = { "uiButton", "uiSlider", "uiToggle", "heldTrigger", "heldPrimary", "heldSecondary", "field" };
 
@@ -189,6 +192,16 @@ namespace PortKit
             ops.Add("scale", () => g.Set(typeof(Transform), "localScale", g.Get(typeof(GameObject), "transform", ops.Target), g.V3(ops.Number(0), ops.Number(1), ops.Number(2))));
             ops.Add("rbVelocity", () => ops.With(typeof(Rigidbody), rb => g.Set(typeof(Rigidbody), "linearVelocity", rb, g.V3(ops.Number(0), ops.Number(1), ops.Number(2)))));
             ops.Add("rbKinematic", () => ops.With(typeof(Rigidbody), rb => g.Set(typeof(Rigidbody), "isKinematic", rb, ops.Flag(0))));
+            // rbLaunch | <target> | x | y | z: kinematic off now, the velocity on the second physics step after (the FixedUpdate
+            // below). A synced body's SDK handoff (SyncedObjectPhysicsHandoff) sets the body's velocity to its tracked one,
+            // zero at rest, in its first step once it is not kinematic, so a velocity set at once is lost (found by beer pong).
+            ops.Add("rbLaunch", () => ops.With(typeof(Rigidbody), rb =>
+            {
+                g.Set(typeof(Rigidbody), "isKinematic", rb, false);
+                g.SetGraphVar(LaunchVelocity, g.V3(ops.Number(0), ops.Number(1), ops.Number(2)), typeof(Vector3));
+                g.SetGraphVar(LaunchTarget, ops.Target, typeof(GameObject));
+                g.SetGraphVar(LaunchSteps, 2f, typeof(float));
+            }));
             // spawn | <template> | <name>: a copy under the template's parent, named, switched on; "@<parent path>/<name>" reaches it
             ops.Add("spawn", () =>
             {
@@ -222,6 +235,30 @@ namespace PortKit
             g.Declare(At, null);
             g.Declare(Next, null);
             g.Declare(TargetVariable, null);
+            g.Declare(LaunchTarget, null);
+            g.Declare(LaunchVelocity, Vector3.zero);
+            g.Declare(LaunchSteps, 0f);
+
+            // the pending launch: its velocity goes on in the second physics step after the op (see rbLaunch)
+            g.On(new FixedUpdate(), _ =>
+            {
+                var steps = g.Keep(g.F(LaunchSteps));
+                g.If(g.Greater(steps, 0f), () =>
+                {
+                    var left = g.Keep(steps - 1f);
+                    g.SetGraphVar(LaunchSteps, left, typeof(float));
+                    g.If(g.Less(left, 0.5f), () =>
+                    {
+                        var target = g.Keep(g.GraphVar(LaunchTarget, typeof(GameObject)));
+                        g.IfNotNull(target, () =>
+                        {
+                            var body = g.Keep(g.ComponentOf(target, typeof(Rigidbody)));
+                            g.IfNotNull(body, () => g.Set(typeof(Rigidbody), "linearVelocity", body, g.GraphVar(LaunchVelocity, typeof(Vector3))));
+                        });
+                        g.SetGraphVar(LaunchTarget, g.Null(typeof(GameObject)), typeof(GameObject));
+                    });
+                });
+            });
 
             g.On(g.Platform("OnJsReturnValue", ("Return ID", Tag)), received =>
             {

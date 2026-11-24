@@ -44,6 +44,7 @@ const NO_HOST: HostActions = {
   uiSetSlider: noop,
   scale: noop,
   rbVelocity: noop,
+  rbLaunch: noop,
   rbKinematic: noop,
   spawn: noop,
   despawn: noop,

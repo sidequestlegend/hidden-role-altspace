@@ -4,7 +4,7 @@
 //
 //   - input: keys (E use, Q eliminate, R alarm, F fault, V hatch), controller buttons, and the personal panel's
 //     buttons, all turned into the same six logical buttons, sent as a sealed beat every BEAT_SECONDS (Beat.ts);
-//   - the local player's own body: start positions, the muster ring and back, the observer lounge, the movement lock
+//   - the local player's own body: start positions, the muster ring and back, the bunkroom (the lounge), the movement lock
 //     in musters and at the end, hatch trips (PORT.md 5.8, 5.10, C7, C8);
 //   - the boards: the hub (lobby and roster), the muster board (votes), the lounge board, the personal panel (role,
 //     jobs nearest first, cooldowns, hints), world markers (bodies, bots, own consoles) and the blackout shell.
@@ -35,6 +35,18 @@ const CLIP_ALERT = 0;
 const CLIP_ALARM = 1;
 /** Where the boarding pad stands, outside the station's south wall (map units): "Leave" goes there. */
 export const ENTRY_POINT = new Vector2(6, -57.6);
+/**
+ * How far a voice can carry here: each person sets their own Voice Distance up to 50 m (the app's default is 30 m) and
+ * a snippet cannot change it (portkit README, "What a snippet cannot change"). While a match runs, nobody but the living
+ * may be nearer than this to the station's floor (D13).
+ */
+export const EARSHOT = 50;
+/** Floor to ceiling, and the roof over it (the kit builder's numbers). */
+const STATION_HEIGHT = 3.6;
+/** The keep-out waits this long after a move it made before it moves again (the next pose may still be the old one). */
+const KEEP_OUT_REPEAT = 0.3;
+/** Every walkable rectangle of the station (rooms, corridors, doorways). */
+const FLOOR = [...STATION.RoomBounds, ...STATION.Corridors, ...STATION.Doorways];
 /** A console click on a hold job keeps Use down this much longer than the job needs, then lets go. */
 const HOLD_MARGIN = 0.35;
 
@@ -105,7 +117,7 @@ export class RuntimeHud extends Behaviour {
   /** What the local effects were last applied for. */
   private applied = { round: -1, state: MatchState.Lobby as number, alive: true, inMatch: false, placedRound: -1, slot: -1 };
   private returnPoint: Vector2 | null = null;
-  private lastObserverCheck = 0;
+  private keepOutUntil = 0;
   private lastSecret: Secret | null = null;
   private waveAlertUntil = 0;
   private lastHeadSent: Vector3 | null = null;
@@ -122,6 +134,7 @@ export class RuntimeHud extends Behaviour {
     this.origin = parseVector(this.Settings.get("position"), Vector3.zero);
     this.yaw = parseVector(this.Settings.get("rotation"), Vector3.zero).y;
     this.lounge = parseVector(this.Settings.get("observer-position"), this.origin.add(LOUNGE_OFFSET));
+    if (this.InEarshot(this.lounge)) this.Debug.LogWarning(`observer-position is within ${EARSHOT} m of the station: the living could hear the downed`);
     this.dealer.onMine = (secret) => {
       this.OnSecret(secret);
       this.Refresh();
@@ -147,6 +160,24 @@ export class RuntimeHud extends Behaviour {
   MyMapPosition(): Vector2 | null {
     const w = this.Input.Position;
     return w ? this.ToMap(w) : null;
+  }
+
+  /**
+   * True when a world point is within EARSHOT of the station's floor (any walkable rectangle, from the floor up to the
+   * roof), measured in three dimensions: the boarding pad, the roof, the water round the station all count.
+   */
+  InEarshot(w: Vector3): boolean {
+    const top = this.origin.y + STATION_HEIGHT;
+    const dy = w.y < this.origin.y ? this.origin.y - w.y : w.y > top ? w.y - top : 0;
+    if (dy >= EARSHOT) return false;
+    const reach = EARSHOT * EARSHOT - dy * dy;
+    const p = this.ToMap(w);
+    for (const r of FLOOR) {
+      const dx = Math.max(r.xMin - p.x, 0, p.x - r.xMax);
+      const dz = Math.max(r.yMin - p.y, 0, p.y - r.yMax);
+      if (dx * dx + dz * dz < reach) return true;
+    }
+    return false;
   }
 
   private InsideStation(w: Vector3): boolean {
@@ -319,7 +350,7 @@ export class RuntimeHud extends Behaviour {
   ClickVote8(): void { this.Vote(9); }
   ClickVote9(): void { this.Vote(10); }
 
-  /** The vote board's button for roster slot n-1 (player number n), or Abstain (-1). */
+  /** The vote board's button for roster slot n-1 (player number n), or Pass (-1: no one). */
   Vote(playerNumber: number): void {
     if (this.M.st !== MatchState.Muster) return;
     this.Tap(Btn.Vote, playerNumber);
@@ -406,17 +437,28 @@ export class RuntimeHud extends Behaviour {
     this.Leave();
   }
 
-  /** The boarding pad outside the station: into the Commons, beside the hub board. */
+  /**
+   * The boarding pad outside the station: into the Commons, beside the hub board. While a match runs only a living
+   * player of it may come in (D13: nobody else may come within earshot of the living).
+   */
   Board(): void {
+    const m = this.M;
+    if (m.st !== MatchState.Lobby) {
+      const slot = this.MySlot();
+      if (m.st !== MatchState.Playing || slot < 0 || m.al[slot] !== 1) return;
+    }
     const n = STATION.SpawnPoints.length;
     const spot = STATION.GetSpawnPoint(Math.min(n - 1, Math.floor(this.Random.Range(0, n))), Vector2.zero);
     this.Teleport("board", spot, STATION.MeetingPoint);
   }
 
-  /** "Leave the station" on the hub board: out to the boarding pad, unless the player is alive in a running match. */
+  /**
+   * "Leave the station" on the hub and bunkroom boards: out to the boarding pad, in the lobby only. During a match the
+   * living stay in it, and the boarding pad is within earshot of the station, so the downed and observers stay in the
+   * bunkroom until it ends (D13).
+   */
   Leave(): void {
-    const slot = this.MySlot();
-    if (slot >= 0 && this.Active(this.M) && this.M.al[slot] === 1) return;
+    if (this.M.st !== MatchState.Lobby) return;
     this.Teleport("leave", ENTRY_POINT, new Vector2(ENTRY_POINT.x, ENTRY_POINT.y + 5));
   }
 
@@ -535,13 +577,14 @@ export class RuntimeHud extends Behaviour {
       }
       this.returnPoint = null;
     }
-    // Observers and the eliminated are kept out of the station while a match runs (PORT.md 5.8).
+    // Observers and the eliminated are kept out of earshot of the station while a match runs (PORT.md 5.8, D13):
+    // checked on every tick, wherever they are (a respawn, a portal, the roof, the water round the station).
     if (m.st !== MatchState.Lobby && !alive) {
+      const w = this.Input.Position;
       const now = this.Time.time;
-      if (now - this.lastObserverCheck >= 1) {
-        this.lastObserverCheck = now;
-        const w = this.Input.Position;
-        if (w && this.InsideStation(w)) this.ToLounge(slot);
+      if (w && now >= this.keepOutUntil && this.InEarshot(w) && Vector3.Distance(w, this.lounge) > 12) {
+        this.keepOutUntil = now + KEEP_OUT_REPEAT;
+        this.ToLounge(slot);
       }
     }
     a.round = m.r;
@@ -654,8 +697,8 @@ export class RuntimeHud extends Behaviour {
   }
 
   private LoungeText(m: PublicMatch, rel: number): string {
-    if (m.st === MatchState.Lobby) return "Observer lounge\nNo match is running.";
-    const lines = ["Observer lounge", "You are out of the match: watch from here.", this.ClockLine(m, rel), `Jobs done: ${m.cd} / ${m.ct}`];
+    if (m.st === MatchState.Lobby) return "Off-shift bunkroom\nNo match is running.";
+    const lines = ["Off-shift bunkroom", "You are out of the match: watch from here.", "Leave opens when the match ends.", this.ClockLine(m, rel), `Jobs done: ${m.cd} / ${m.ct}`];
     if (m.st === MatchState.Muster) lines.push(`Muster: ${seconds(m.me - rel)} left`);
     if (m.st === MatchState.Ended) lines.push(`${TEAM_NAMES[m.w]} win.`);
     for (let i = 0; i < m.sl.length; i++) lines.push(this.RosterLine(m, i));
@@ -666,11 +709,11 @@ export class RuntimeHud extends Behaviour {
     const an = m.an;
     if (an[0] === Announcement.MusterResult && an[3]! > rel) {
       const who = an[1]! >= 0 ? m.sl[an[1]!]?.n : null;
-      return who ? `${who} was locked out.\nThey were a ${ROLE_NAMES[an[2]!]!.toLowerCase()}.` : "Nobody was locked out.";
+      return who ? `Vote result: ${who} is locked out.\nRole revealed: ${ROLE_NAMES[an[2]!]!.toLowerCase()}.` : "Vote result: the vote clears everyone this time.";
     }
     if (m.st !== MatchState.Muster) return "Muster board";
     const caller = m.sl[m.mr]?.n ?? "Someone";
-    const head = m.mb >= 0 ? `ALARM: ${caller} found ${m.sl[m.mb]?.n ?? "someone"} down.` : `MUSTER called by ${caller}.`;
+    const head = m.mb >= 0 ? `${caller} sounded the alarm over ${m.sl[m.mb]?.n ?? "someone"}.` : `MUSTER called by ${caller}.`;
     const lines = [head, `Vote: ${seconds(m.me - rel)} left`];
     for (let i = 0; i < m.sl.length; i++) {
       if (m.al[i] !== 1 || m.gn[i] === 1) continue;
@@ -695,7 +738,7 @@ export class RuntimeHud extends Behaviour {
     if (role === Role.Saboteur && mine && mine.f.length) lines.push(`With: ${mine.f.map((s) => m.sl[s]?.n ?? "?").join(", ")}`);
     lines.push(this.ClockLine(m, rel));
     if (m.al[slot] !== 1) {
-      lines.push("You are out. Watch from the lounge.");
+      lines.push("You are out. Watch from the bunkroom.");
       return lines.filter((l) => l !== "").join("\n");
     }
     if (this.waveAlertUntil > this.Time.time) lines.push("NEW JOB ASSIGNED");
@@ -706,7 +749,9 @@ export class RuntimeHud extends Behaviour {
         .map((s) => ({ s, d: Dist(here, s.Position) }))
         .sort((a, b) => a.d - b.d);
       lines.push(role === Role.Saboteur ? `Cover jobs (${open.length} left):` : `Jobs (${open.length} left):`);
-      for (const { s, d } of open.slice(0, 7)) lines.push(`${compass(here, s.Position)} ${s.Name} (${JOB_KIND_NAMES[s.Kind]}) - ${s.Room ? STATION.Rooms.find((r) => r.Id === s.Room)?.Name : ""} ${d.toFixed(0)} m`);
+      // During a fault the directions are hidden, as upstream hid its pointer (F35): name, kind, room and distance only.
+      const pointer = (to: Vector2) => (m.fk ? "" : `${compass(here, to)} `);
+      for (const { s, d } of open.slice(0, 7)) lines.push(`${pointer(s.Position)}${s.Name} (${JOB_KIND_NAMES[s.Kind]}) - ${s.Room ? STATION.Rooms.find((r) => r.Id === s.Room)?.Name : ""} ${d.toFixed(0)} m`);
       if (open.length > 7) lines.push(`+${open.length - 7} more`);
       const near = open[0];
       if (near && near.d <= this.settings.jobRange + 0.15 && m.fk !== Fault.Jam) lines.push(this.JobHint(near.s.Kind));
@@ -779,7 +824,8 @@ export class RuntimeHud extends Behaviour {
     for (let i = 0; i < this.consoles.length; i++) {
       const own = !!mine && alive && (mine.a & (1 << i)) !== 0 && (mine.c & (1 << i)) === 0;
       const inRange = own && here && Dist(here, STATION.JobStations[i]!.Position) <= this.settings.jobRange;
-      const color = !own ? DIM : inRange ? GOLD : role === Role.Saboteur ? PLUM : i === nearest ? AMBER : TEAL;
+      // the nearest one in amber is the pointer: none during a fault (F35)
+      const color = !own ? DIM : inRange ? GOLD : role === Role.Saboteur ? PLUM : i === nearest && !m.fk ? AMBER : TEAL;
       this.Host.setColor(this.consoles[i]!.key, "_BaseColor", color);
     }
     // C18: the blackout shell on living technicians only; `vision-range` (off by default) for everyone alive.

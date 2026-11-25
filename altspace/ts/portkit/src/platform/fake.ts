@@ -821,7 +821,11 @@ class FakeApp {
   private backoff = 0;
   private pumpTimer = 0;
   private protectedOff = false;
-  readonly stats = { batches: 0, rateLimited: 0, writesQueued: 0, relayCalls: 0 };
+  /**
+   * kitsLoading: kit items attached and not yet loaded on this page; kitsLoadingAtOnce: the most there ever were (the app
+   * loses kit data when kit loads overlap: BsPlatform.kitTurn).
+   */
+  readonly stats = { batches: 0, rateLimited: 0, writesQueued: 0, relayCalls: 0, kitsLoading: 0, kitsLoadingAtOnce: 0 };
 
   constructor(room: FakeRoom, client: FakeClient) {
     this.room = room;
@@ -909,9 +913,12 @@ class FakeApp {
         const bundle = holder.components.find((c) => c.componentType === "AssetBundle") as AssetBundle | undefined;
         const url = bundle ? bundle.windowsUrl || bundle.androidUrl : "";
         holder.kit = { url, loaded: false };
+        app.stats.kitsLoading++;
+        app.stats.kitsLoadingAtOnce = Math.max(app.stats.kitsLoadingAtOnce, app.stats.kitsLoading);
         room.schedule(
           room.options.kitLoadMs,
           () => {
+            app.stats.kitsLoading--;
             const kit = room.kitAt(url);
             if (kit && !holder.destroyed) {
               const root = new FakeObject(app, `${kit.prefab}(Clone)`, holder);

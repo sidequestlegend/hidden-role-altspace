@@ -1,5 +1,13 @@
 # hidden-role: test evidence
 
+## Page script on portkit 552622c, 2026-11-25 evening
+
+Re-synced `ts/portkit` and the package to portkit `552622c`. That commit includes `425bd55`: the page loads kit
+items one at a time, because overlapping loads lost relay graphs and Variables in the app. It also includes
+`0880bf5`: a referee claimant starts only once its claim has stood for 1.5 s, which fixes the equal-term double
+claim, and user-state flushes go one at a time. The bundles are unchanged from the rebuild below. `npm test`:
+**52 of 52** (0 failed). `npm run build`: 504409 bytes. Export Artifacts -> `dist/`: 8 files (3 licence texts), footprint 123.5 x 3.45 x 112.85 m ('Station'), bindings 126bf586a7b4a238d23036cd9eb8fba756f107ba.
+
 ## The personal panel and pushing, 2026-11-25 evening (portkit 476075d)
 
 In world 9d7311 the personal panel followed every visitor's head, 0.55 m in front of it and 0.35 m below, even with

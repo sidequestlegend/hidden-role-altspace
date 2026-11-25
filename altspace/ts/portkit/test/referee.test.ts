@@ -91,6 +91,33 @@ test("claims that cross on a slow network still end with one referee everyone ag
   }
 });
 
+test("two pages claiming the same term in the same tick: one referee, and only it starts the game fresh", async () => {
+  // Both pages enter in the same tick and claim at once (no rank step), so both write term 1 before either has heard
+  // of the other, and each may see its own claim first. Each claimant waits until the record has stood still; the
+  // one the room kept starts "fresh", the other "joined" as its follower (found by mini-golf, two courses in a room).
+  const cases: Array<{ seed: number; latency?: [number, number]; step: number }> = [];
+  for (const seed of [1, 2, 3, 4, 5, 6]) cases.push({ seed, step: 0 }, { seed, latency: [300, 900], step: 400 });
+  for (const { seed, latency, step } of cases) {
+    const room = new FakeRoom({ seed, ...(latency ? { latency } : {}) });
+    const g = probeGame("probe", { options: { claimStepMs: step } });
+    const clients = [enter(room, [g], { uid: "u1" }), enter(room, [g], { uid: "u2" })];
+    await untilStarted(room, clients, "probe");
+    await room.run(5000);
+    const label = `seed ${seed}, ${latency ? "slow" : "same tick"}`;
+    const referees = clients.filter((client) => isReferee(client));
+    assert.equal(referees.length, 1, `${label}: ${referees.length} referees`);
+    assert.ok(allEqual(clients.map((client) => JSON.stringify(refereeOf(client)))), `${label}: views differ`);
+    if (!latency) assert.deepEqual(clients.map((client) => inst(client, "probe").referee.claims), [1, 1], `${label}: both claimed`);
+    for (const client of clients) {
+      assert.deepEqual(probe(client).startKinds, [client === referees[0] ? "fresh" : "joined"], `${label}: ${client.name}`);
+    }
+    // The game runs: what the referee writes reaches the other page.
+    probe(referees[0]!).Set(70 + seed);
+    await room.run(4000);
+    for (const client of clients) assert.equal(probe(client).value, 70 + seed, `${label}: ${client.name} has the referee's value`);
+  }
+});
+
 test("random joins, leaves and writes: one referee, one owner, one state", async () => {
   for (let seed = 1; seed <= 25; seed++) {
     const rng = seededRandom(seed * 101);

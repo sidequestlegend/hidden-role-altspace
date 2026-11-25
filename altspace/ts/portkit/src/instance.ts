@@ -331,13 +331,22 @@ export class GameInstance implements NetHost {
     }
   }
 
-  private whenReferee(): Promise<void> {
-    if (this.referee.current()) return Promise.resolve();
-    const gate = deferred<void>();
-    this.referee.on((now) => {
-      if (now) gate.resolve();
-    });
-    return gate.promise;
+  /** A referee, and (if this client claimed the seat) one that has stood still long enough to be the room's choice. */
+  private async whenReferee(): Promise<void> {
+    for (;;) {
+      if (this.core.disposed) return;
+      if (!this.referee.current()) {
+        const gate = deferred<void>();
+        this.referee.on((now) => {
+          if (now) gate.resolve();
+        });
+        await gate.promise;
+        continue;
+      }
+      const wait = this.referee.settlingMs();
+      if (wait <= 0) return;
+      await new Promise<void>((resolve) => this.scheduler.after(wait, resolve));
+    }
   }
 
   private async loadKit(): Promise<void> {

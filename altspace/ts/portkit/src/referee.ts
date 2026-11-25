@@ -10,6 +10,10 @@
 //     game uses that so that a bystander is never elected and handed every secret. With no candidate there is no
 //     referee and the instance idles: behaviours run, but nothing unowned can be written. A referee who stops
 //     being a candidate stops being referee, and the others elect again.
+//   - Two claims of one term written in the same moment both seem to win for a while: each claimant may see its own
+//     first. The room still ends with one (the last written), so a claimant does not start its game on what it sees
+//     until the record has stood still for CROSSING_MS after its claim (settlingMs; the instance waits for it). The
+//     loser then starts as a follower of the winner ("joined"), and only the winner starts the game ("fresh").
 //   - `e` is the epoch. A claimant that finds nobody left from the last game (no participant says it is running
 //     in the mirrored epoch) raises it, and every record of an older epoch then counts as absent: the instance
 //     starts fresh without a delete having to race the writes that follow it.
@@ -42,6 +46,8 @@ export class Referee {
   private timerDue = -1;
   private invalidSince = 0;
   private claimAt = -Infinity;
+  /** When the mirrored record last changed (or went invalid), for settlingMs. */
+  private changedAt = -Infinity;
   private seen: RefRecord | null = null;
   private lastEpoch = 0;
   private declared = false;
@@ -87,6 +93,17 @@ export class Referee {
 
   isMe(): boolean {
     return this.current()?.sid === this.core.me.sid;
+  }
+
+  /**
+   * How long before this client may start its game on the referee it sees: 0 if it never claimed (a follower takes
+   * what is mirrored), else until the record has not changed for CROSSING_MS since its last claim, so that a claim of
+   * the same term that crossed its own has arrived and the room's choice is the one everybody sees.
+   */
+  settlingMs(): number {
+    if (this.claims === 0) return 0;
+    const quietSince = Math.max(this.claimAt, this.changedAt);
+    return Math.max(0, quietSince + CROSSING_MS - this.core.platform.clock.now());
   }
 
   /** The epoch of the last valid referee seen: records of any other epoch are ignored. 0 before the first. */
@@ -135,13 +152,16 @@ export class Referee {
       this.cancelTimer();
       if (!before || before.sid !== now.sid || before.term !== now.term || before.e !== now.e) {
         // Nobody honest writes `ref` while a valid referee is mirrored, so a sitting referee replaced while it is
-        // still a candidate was displaced by a modified client (or by a claim that crossed its own, just after it).
+        // still a candidate was displaced by a modified client (or by a claim that crossed its own, just after it: one
+        // that comes while its record had not yet stood still for CROSSING_MS, as settlingMs counts it).
         const me = this.core.me.sid;
-        if (before && before.sid === me && now.sid !== me && this.isCandidate(me) && this.core.platform.clock.now() - this.claimAt > CROSSING_MS) {
+        const settled = this.core.platform.clock.now() - Math.max(this.claimAt, this.changedAt) > CROSSING_MS;
+        if (before && before.sid === me && now.sid !== me && this.isCandidate(me) && settled) {
           this.core.log("warn", `the referee seat was taken by session ${now.sid} (term ${now.term}) while this client was referee`);
         }
         this.lastEpoch = now.e;
         this.seen = now;
+        this.changedAt = this.core.platform.clock.now();
         this.publishEpoch();
         this.emit(now, before);
       }
@@ -150,6 +170,7 @@ export class Referee {
     if (before) {
       this.seen = null;
       this.invalidSince = this.core.platform.clock.now();
+      this.changedAt = this.invalidSince;
       this.claimAt = -Infinity;
       this.emit(null, before);
     }

@@ -103,3 +103,20 @@ test("a player's page only mirrors the protocol's own keys, whatever else is in 
   assert.ok(platform.stateEntries("").every(([path]) => path.startsWith("pk1.probe.0.")));
   assert.deepEqual(a.logged("error"), []);
 });
+
+test("own user state: a leaf's last value wins, even when an earlier flush is still waiting on another leaf", async () => {
+  // On a slow network one flush awaits each write's answer in turn; a second flush started meanwhile sent a leaf's newer
+  // value first, and the first flush then sent the older one, which the room kept (seen as a player id going back).
+  const room = new FakeRoom({ seed: 21, latency: [600, 600] });
+  const a = enter(room, [probeGame()]);
+  const b = enter(room, [probeGame()]);
+  await untilStarted(room, [a, b], "probe");
+  const platform = inst(a, "probe").platform;
+  const leaf = statePrefix("probe", "0") + ".t";
+  platform.userSet(statePrefix("probe", "0") + ".u", "first leaf"); // the batch waits ~1.2 s on this one...
+  platform.userSet(leaf, "old");
+  await room.run(400); // ...and a newer value of the second leaf is asked for meanwhile
+  platform.userSet(leaf, "new");
+  await room.run(8000);
+  assert.equal(inst(b, "probe").platform.userGet(a.sid, leaf), "new");
+});

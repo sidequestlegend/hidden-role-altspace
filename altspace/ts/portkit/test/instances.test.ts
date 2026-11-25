@@ -164,3 +164,24 @@ test("Behaviour.Shared is one object for every instance of a game on a page, and
   assert.equal(probe(b, "chips", "t1").Shared.balance, undefined, "another page does not");
   assert.equal(probe(a, "chips", "t2").InstanceKey, "t2");
 });
+
+test("the kit items of every game on a page load one at a time, and all of them start", async () => {
+  // The app loses a kit's relay graph or Variables when its load overlaps another kit's (BsPlatform.kitTurn; vs-repro).
+  const room = new FakeRoom({ seed: 14 });
+  room.defineKit(SAMPLE_KIT, sampleBindings());
+  const other = probeGame("probe");
+  const client = enter(room, [other]);
+  client.load(sample, sampleBindings());
+  client.addSnippet(SLUG, { windows: SAMPLE_KIT, room: "north", position: "0 0 0" });
+  client.addSnippet(SLUG, { windows: SAMPLE_KIT, room: "south", position: "5 0 0" });
+  client.addSnippet(SLUG, { windows: SAMPLE_KIT, room: "east", position: "10 0 0" });
+  const ok = await room.runUntil(
+    () => running(client, SLUG, "north") && running(client, SLUG, "south") && running(client, SLUG, "east") && running(client, "probe"),
+    20000,
+  );
+  assert.ok(ok, "every instance started");
+  assert.equal(client.app.stats.kitsLoading, 0);
+  assert.equal(client.app.stats.kitsLoadingAtOnce, 1, "no two kit items were loading at once");
+  for (const name of ["north", "south", "east"]) assert.ok(client.hasHolder(SLUG, name));
+  assert.deepEqual(client.logged("error"), []);
+});

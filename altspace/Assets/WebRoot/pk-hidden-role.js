@@ -3216,6 +3216,8 @@
       __publicField(this, "timerDue", -1);
       __publicField(this, "invalidSince", 0);
       __publicField(this, "claimAt", -Infinity);
+      /** When the mirrored record last changed (or went invalid), for settlingMs. */
+      __publicField(this, "changedAt", -Infinity);
       __publicField(this, "seen", null);
       __publicField(this, "lastEpoch", 0);
       __publicField(this, "declared", false);
@@ -3256,6 +3258,16 @@
     isMe() {
       return this.current()?.sid === this.core.me.sid;
     }
+    /**
+     * How long before this client may start its game on the referee it sees: 0 if it never claimed (a follower takes
+     * what is mirrored), else until the record has not changed for CROSSING_MS since its last claim, so that a claim of
+     * the same term that crossed its own has arrived and the room's choice is the one everybody sees.
+     */
+    settlingMs() {
+      if (this.claims === 0) return 0;
+      const quietSince = Math.max(this.claimAt, this.changedAt);
+      return Math.max(0, quietSince + CROSSING_MS - this.core.platform.clock.now());
+    }
     /** The epoch of the last valid referee seen: records of any other epoch are ignored. 0 before the first. */
     get epoch() {
       return this.lastEpoch;
@@ -3293,11 +3305,13 @@
         this.cancelTimer();
         if (!before || before.sid !== now.sid || before.term !== now.term || before.e !== now.e) {
           const me2 = this.core.me.sid;
-          if (before && before.sid === me2 && now.sid !== me2 && this.isCandidate(me2) && this.core.platform.clock.now() - this.claimAt > CROSSING_MS) {
+          const settled = this.core.platform.clock.now() - Math.max(this.claimAt, this.changedAt) > CROSSING_MS;
+          if (before && before.sid === me2 && now.sid !== me2 && this.isCandidate(me2) && settled) {
             this.core.log("warn", `the referee seat was taken by session ${now.sid} (term ${now.term}) while this client was referee`);
           }
           this.lastEpoch = now.e;
           this.seen = now;
+          this.changedAt = this.core.platform.clock.now();
           this.publishEpoch();
           this.emit(now, before);
         }
@@ -3306,6 +3320,7 @@
       if (before) {
         this.seen = null;
         this.invalidSince = this.core.platform.clock.now();
+        this.changedAt = this.invalidSince;
         this.claimAt = -Infinity;
         this.emit(null, before);
       }
@@ -5176,13 +5191,22 @@ ${label}`)));
         this.ready.resolve(this.started);
       }
     }
-    whenReferee() {
-      if (this.referee.current()) return Promise.resolve();
-      const gate = deferred();
-      this.referee.on((now) => {
-        if (now) gate.resolve();
-      });
-      return gate.promise;
+    /** A referee, and (if this client claimed the seat) one that has stood still long enough to be the room's choice. */
+    async whenReferee() {
+      for (; ; ) {
+        if (this.core.disposed) return;
+        if (!this.referee.current()) {
+          const gate = deferred();
+          this.referee.on((now) => {
+            if (now) gate.resolve();
+          });
+          await gate.promise;
+          continue;
+        }
+        const wait = this.referee.settlingMs();
+        if (wait <= 0) return;
+        await new Promise((resolve) => this.scheduler.after(wait, resolve));
+      }
     }
     async loadKit() {
       const { core, bindings, element } = this;
@@ -11839,6 +11863,7 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
       /** For tests and diagnostics: handoffs to the app, and the largest one in bytes. */
       __publicField(this, "stateStats", { handoffs: 0, largest: 0, deferred: 0 });
       __publicField(this, "pendingUser", /* @__PURE__ */ new Map());
+      __publicField(this, "userFlushing", false);
       __publicField(this, "userTimer", 0);
       __publicField(this, "userLastFlush", -Infinity);
       __publicField(this, "userBackoff", 0);
@@ -11910,6 +11935,31 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
         win.__pk1 = made;
       }
       return registry;
+    }
+    /**
+     * Waits until no other kit item of this page is loading (the registry's kitTurn, a chain every game script on the page
+     * joins: scripts are separate bundles, so the turn lives on window.__pk1), then holds the turn. Resolves to the call
+     * that hands it on; call it once the kit item has reported loaded (or given up). A script of an older portkit on the
+     * same page does not take turns, so it can still overlap the others.
+     */
+    async kitTurn(holderName2) {
+      const registry = this.registry();
+      const before = registry.kitTurn instanceof Promise ? registry.kitTurn : Promise.resolve();
+      let hand;
+      const mine = new Promise((resolve) => {
+        hand = resolve;
+      });
+      registry.kitTurn = before.then(() => mine);
+      const waited = this.env.now();
+      await before;
+      const ms = this.env.now() - waited;
+      if (ms > 0) this.log("debug", `kit ${holderName2}: waited ${Math.round(ms)} ms for the other kits on the page to load`);
+      let handed = false;
+      return () => {
+        if (handed) return;
+        handed = true;
+        hand();
+      };
     }
     claimGame(slug, info) {
       const registry = this.registry();
@@ -12340,7 +12390,7 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
       this.scheduleUserFlush();
     }
     scheduleUserFlush() {
-      if (this.userTimer) return;
+      if (this.userTimer || this.userFlushing) return;
       const wait = Math.max(0, this.userLastFlush + Math.max(this.options.userFlushMs, this.userBackoff) - this.env.now());
       this.userTimer = this.env.setTimeout(() => {
         this.userTimer = 0;
@@ -12348,11 +12398,21 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
       }, wait);
     }
     async flushUser() {
+      this.userFlushing = true;
+      try {
+        await this.flushUserBatch();
+      } finally {
+        this.userFlushing = false;
+      }
+      if (this.pendingUser.size) this.scheduleUserFlush();
+    }
+    async flushUserBatch() {
       this.userLastFlush = this.env.now();
       const batch = [...this.pendingUser];
       this.pendingUser.clear();
       let limited = false;
       for (const [path, value] of batch) {
+        if (this.pendingUser.has(path)) continue;
         if (this.localUser) {
           this.setLocalUser(path, value);
           continue;
@@ -12375,7 +12435,6 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
         }
       }
       this.userBackoff = limited ? Math.min(Math.max(this.userBackoff * 2, 250), 4e3) : 0;
-      if (this.pendingUser.size) this.scheduleUserFlush();
     }
     setLocalUser(path, value) {
       const store = this.localUser;
@@ -12426,14 +12485,20 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
       if (spec.scale) placement.localScale = toBs3(BS, spec.scale);
       if (Object.keys(placement).length) await holder.SetTransform(placement);
       await holder.AddComponent(new BS.AssetBundle(spec.windows, "", "", spec.android, "", "", false, false));
-      const item = new BS.KitItem("*");
-      const loaded = deferred();
-      item.On("loaded", () => loaded.resolve(true));
-      await holder.AddComponent(item);
-      if (item.isLoaded) loaded.resolve(true);
-      const timer = this.env.setTimeout(() => loaded.resolve(false), this.options.kitTimeoutMs);
-      const ok = await loaded.promise;
-      this.env.clearTimeout(timer);
+      const handOn = await this.kitTurn(spec.holderName);
+      let ok;
+      try {
+        const item = new BS.KitItem("*");
+        const loaded = deferred();
+        item.On("loaded", () => loaded.resolve(true));
+        await holder.AddComponent(item);
+        if (item.isLoaded) loaded.resolve(true);
+        const timer = this.env.setTimeout(() => loaded.resolve(false), this.options.kitTimeoutMs);
+        ok = await loaded.promise;
+        this.env.clearTimeout(timer);
+      } finally {
+        handOn();
+      }
       if (!ok) this.log("error", `kit ${spec.holderName}: the kit item never reported loaded`);
       const scene = this.scene;
       const childrenOf = (parent) => {

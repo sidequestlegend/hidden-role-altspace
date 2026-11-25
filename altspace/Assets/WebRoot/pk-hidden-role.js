@@ -8771,6 +8771,8 @@ ${label}`)));
 
   // src/RuntimeHud.ts
   var LOUNGE_OFFSET = new Vector3(0, -70, 0);
+  var PANEL_PARK = LOUNGE_OFFSET.add(new Vector3(0, 0.5, -3.5));
+  var SHELL_PARK = LOUNGE_OFFSET;
   var WAVE_ALERT_SECONDS = 6;
   var CLOCK_WARNING_SECONDS = 30;
   var GOLD = new Color(1, 0.78, 0.2, 1);
@@ -8796,6 +8798,9 @@ ${label}`)));
     const names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
     const angle = Math.atan2(d.x, d.y) * 180 / Math.PI;
     return names[(Math.round(angle / 45) + 8) % 8];
+  }
+  function PanelFollows(m, slot) {
+    return slot >= 0 && m.st !== MatchState.Lobby && m.sl[slot] !== void 0 && m.sl[slot].b !== 1;
   }
   function seconds(value) {
     return `${Math.max(0, Math.ceil(value))}s`;
@@ -8854,6 +8859,8 @@ ${label}`)));
       __publicField(this, "lastSecret", null);
       __publicField(this, "waveAlertUntil", 0);
       __publicField(this, "lastHeadSent", null);
+      /** True once the panel and the shell were put back where the kit has them (not following the head). */
+      __publicField(this, "parked", false);
       __publicField(this, "lastCutIn", 0);
       /** Teleports this client made, in map units (tests read them). */
       __publicField(this, "moves", []);
@@ -9218,7 +9225,7 @@ ${label}`)));
         void this.SendBeat(m, slot);
         this.Refresh();
       }
-      this.FollowHead();
+      this.FollowHead(m, slot);
     }
     /** The sealed beat, on the fixed schedule, from every rostered person for the whole match. */
     async SendBeat(m, slot) {
@@ -9305,8 +9312,16 @@ ${label}`)));
       this.Teleport("lounge", Vector2.zero, null, spot);
       this.Lock(false);
     }
-    /** The personal panel floats below the head, and the blackout shell sits round it. Sent only when it moved. */
-    FollowHead() {
+    /**
+     * The personal panel floats below the head, and the blackout shell sits round it, for a person in a match only
+     * (PanelFollows); otherwise both go back where the kit put them. Sent only when it moved.
+     */
+    FollowHead(m, slot) {
+      if (!PanelFollows(m, slot)) {
+        this.Park();
+        return;
+      }
+      this.parked = false;
       const head = this.Input.Poses?.head ?? null;
       const w = head ? head.position : this.Input.Position;
       if (!w) return;
@@ -9319,6 +9334,21 @@ ${label}`)));
         this.personalPanel.transform.SetPositionAndRotation(w.add(flat.scale(0.55)).add(new Vector3(0, -0.35, 0)), Quaternion.Euler(25, yaw, 0));
       }
       if (this.shell) this.shell.transform.position = w.clone();
+    }
+    /** The panel and the shell back where the kit put them, in the lounge (once, each time they stop following). */
+    Park() {
+      if (this.parked) return;
+      this.parked = true;
+      this.lastHeadSent = null;
+      if (this.personalPanel) {
+        this.personalPanel.transform.localPosition = PANEL_PARK;
+        this.personalPanel.transform.localRotation = Quaternion.identity;
+      }
+      if (this.shell) this.shell.transform.localPosition = SHELL_PARK;
+    }
+    /** True while the personal panel follows the local head (tests). */
+    get PanelFollowing() {
+      return !this.parked;
     }
     OnSecret(secret) {
       const before = this.lastSecret;

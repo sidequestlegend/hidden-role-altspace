@@ -35,6 +35,13 @@ namespace PortKit
     ///                                    "blocked at ... by ...". From hidden-role.
     ///   where                            the desktop player's feet and camera
     ///   place &lt;x&gt; &lt;y&gt; &lt;z&gt;                  put the desktop player's feet there
+    ///   standstill [seconds]             the push check: a stand-in body (a free capsule, radius 0.25 m, 1.7 m tall, on the
+    ///                                    Default layer, so it meets every layer; rotation and height held) stands at the
+    ///                                    desktop player's feet for that long (default 5 s) while the player stands still.
+    ///                                    Answers "ok still: body moved 0.000 m, player moved 0.000 m, touched none" or
+    ///                                    "PUSHED: body moved ... touched <solid colliders>": a solid collider that moves
+    ///                                    with or into a player (a canvas box on a head label, a menu, a held item) shoves
+    ///                                    it. The player's own colliders (layers 23, 24, under the desktop player) are left out.
     /// Pointer commands first move the mouse one pixel aside: the SDK's desktop pointer acts on its last target again if
     /// the mouse has not moved (found by hidden-role: a Start click once pressed Stop).
     /// The editor may be in the background: the Input System is told to keep taking input without focus for the test,
@@ -60,6 +67,7 @@ namespace PortKit
             KitPlayTest.Commands["wait"] = (a, reply) => Frames(int.Parse(a[0], CultureInfo.InvariantCulture));
             KitPlayTest.Commands["type"] = Type;
             KitPlayTest.Commands["walk"] = Walk;
+            KitPlayTest.Commands["standstill"] = StandStill;
             KitPlayTest.Commands["where"] = (a, reply) => { reply(Where()); return null; };
             KitPlayTest.Commands["place"] = (a, reply) =>
             {
@@ -312,6 +320,53 @@ namespace PortKit
                 }
                 player.position = here;
             }
+        }
+
+        // ---- the push check ----
+        static string NameUp(Transform t)
+        {
+            var names = new System.Collections.Generic.List<string>();
+            for (int i = 0; t != null && i < 4; t = t.parent, i++) names.Insert(0, t.name);
+            return string.Join("/", names);
+        }
+
+        static IEnumerator StandStill(string[] args, Action<string> reply)
+        {
+            var player = DesktopPlayer();
+            if (player == null) { reply("error: no desktop player"); yield break; }
+            float seconds = args.Length > 0 ? float.Parse(args[0], CultureInfo.InvariantCulture) : 5f;
+            var feet = player.position;
+            var body = new GameObject("PortKitStandIn");
+            body.layer = 0;
+            body.transform.position = feet;
+            var capsule = body.AddComponent<CapsuleCollider>();
+            capsule.radius = BodyRadius;
+            capsule.height = BodyHeight - 0.1f;
+            capsule.center = new Vector3(0, 0.05f + capsule.height / 2, 0);
+            var rb = body.AddComponent<Rigidbody>();
+            rb.useGravity = false;
+            rb.mass = 70;
+            rb.constraints = RigidbodyConstraints.FreezeRotation | RigidbodyConstraints.FreezePositionY;
+            var touched = new System.Collections.Generic.SortedSet<string>(StringComparer.Ordinal);
+            double end = UnityEditor.EditorApplication.timeSinceStartup + seconds;
+            while (UnityEditor.EditorApplication.timeSinceStartup < end)
+            {
+                yield return null;
+                if (!UnityEditor.EditorApplication.isPlaying || body == null || player == null) { reply("error: Play mode ended"); yield break; }
+                var at = body.transform.position;
+                foreach (var c in Physics.OverlapCapsule(at + Vector3.up * 0.45f, at + Vector3.up * 1.6f, BodyRadius + 0.01f, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    if (c == capsule || c.gameObject.layer == 23 || c.gameObject.layer == 24 || c.transform.IsChildOf(player)) continue;
+                    touched.Add($"{NameUp(c.transform)} ({c.GetType().Name}, layer {c.gameObject.layer})");
+                }
+            }
+            var moved = body.transform.position - feet;
+            moved.y = 0;
+            var playerMoved = player.position - feet;
+            UnityEngine.Object.Destroy(body);
+            bool still = moved.magnitude < 0.02f && playerMoved.magnitude < 0.02f && touched.Count == 0;
+            reply(FormattableString.Invariant($"{(still ? "ok still" : "PUSHED")}: body moved {moved.magnitude:F3} m, player moved {playerMoved.magnitude:F3} m in {seconds:F0} s at {feet.x:F2},{feet.y:F2},{feet.z:F2}, touched ") +
+                  (touched.Count == 0 ? "none" : string.Join("; ", touched.Take(8))));
         }
 
         static IEnumerator Look(string[] a, Action<string> reply)

@@ -691,6 +691,7 @@ namespace PortKit
             //      with whatever else the app does not have ----
             builder.Finishing(this);
             int stripped = Strip();
+            CanvasColliders();
 
             // ---- text fields: every TMP_InputField reports its edits to the page (graph event "field", README); the relay
             //      graph compares its text with the PkField variable, which starts as the field's own text ----
@@ -802,6 +803,8 @@ namespace PortKit
             var problems = Bindings.Problems();
             if (problems.Count > 0) throw new Exception("bindings: " + string.Join("; ", problems));
             Validate(stripped);
+            var solidCanvases = SolidCanvases(Root);
+            if (solidCanvases.Count > 0) throw new Exception("world-space canvases that would push players: " + string.Join("; ", solidCanvases));
         }
 
         void EnsureCollider(GameObject go)
@@ -956,6 +959,51 @@ namespace PortKit
             if (outside + foreign + missing + networked + fixedIds > 0)
                 throw new Exception($"{outside} references outside the kit, {foreign} project scripts, {missing} missing scripts, " +
                                     $"{networked} networked components, {fixedIds} fixed network ids");
+        }
+
+        /// <summary>
+        /// Every world-space Canvas gets a trigger BoxCollider of its own (GAPS.md, "canvas colliders push players"). When a kit
+        /// loads, the SDK's BSKitItem gives every world-space Canvas that has no BoxCollider a solid one, rect x scale, on the
+        /// canvas's layer (BSKitItem.cs 147-163); a canvas that moves with a player (a label on a head, a menu in front of it)
+        /// then shoves that player's body. BSAssetBundle adds the same box as a trigger. BSKitItem adds nothing to a canvas
+        /// that has a BoxCollider, so the kit puts a trigger one there first, in BSKitItem's place and size; a box the builder
+        /// already gave a canvas becomes a trigger. Pointers still reach the canvas: the desktop pointer reads uGUI through the
+        /// EventSystem's raycasters, and its collider rays (layers 5 and 22) are QueryTriggerInteraction.Collide.
+        /// </summary>
+        void CanvasColliders()
+        {
+            int added = 0, made = 0;
+            foreach (var canvas in Root.GetComponentsInChildren<Canvas>(true))
+            {
+                if (canvas.renderMode != RenderMode.WorldSpace) continue;
+                var box = canvas.GetComponent<BoxCollider>();
+                if (box == null)
+                {
+                    var rt = canvas.GetComponent<RectTransform>();
+                    box = canvas.gameObject.AddComponent<BoxCollider>();
+                    box.size = new Vector3(rt.rect.width, rt.rect.height, 0.01f);
+                    box.center = new Vector3(rt.rect.center.x, rt.rect.center.y, 0.015f);
+                    box.isTrigger = true;
+                    added++;
+                }
+                else if (!box.isTrigger) { box.isTrigger = true; made++; }
+            }
+            if (added + made > 0) Report.AppendLine($"   canvas colliders: {added} trigger boxes added to world-space canvases, {made} canvas boxes made triggers (BSKitItem adds solid ones)");
+        }
+
+        /// <summary>The world-space canvases of a kit that would end up with a solid collider (none may: CanvasColliders).</summary>
+        public static List<string> SolidCanvases(GameObject root)
+        {
+            var bad = new List<string>();
+            foreach (var canvas in root.GetComponentsInChildren<Canvas>(true))
+            {
+                if (canvas.renderMode != RenderMode.WorldSpace) continue;
+                string path = KitPath(canvas.transform, root.transform);
+                if (canvas.GetComponent<BoxCollider>() == null) bad.Add(path + " (no BoxCollider: the SDK adds a solid one)");
+                foreach (var c in canvas.GetComponents<Collider>())
+                    if (!c.isTrigger) bad.Add($"{path} (solid {c.GetType().Name})");
+            }
+            return bad;
         }
 
         // ------------------------------------------------------------------ field values (README, "Field values")

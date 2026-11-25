@@ -1,5 +1,48 @@
 # hidden-role: test evidence
 
+## The personal panel and pushing, 2026-11-25 evening (portkit 476075d)
+
+In world 9d7311 the personal panel followed every visitor's head, 0.55 m in front of it and 0.35 m below, even with
+no match running, and a person there was shoved about. (The shove Shane felt after this game was taken off the page
+was rp-toolkit's head label: the SDK gives every world-space canvas a solid box, measured in the hub, portkit GAPS.md
+"Fourth pass". This kit has no canvases; the kit check confirms it.) Two changes:
+
+- **The panel follows only a person in a match.** `RuntimeHud.PanelFollows(m, slot)`: on the roster (not a bot's slot)
+  of a match that is playing, in a muster, or showing its result. Otherwise the panel and the blackout shell go back
+  where the kit put them (`PANEL_PARK` = the lounge offset + (0, 0.5, -3.5), `SHELL_PARK`, kit-root local) once, and
+  stay there.
+- **Every click collider is a trigger** (`HiddenRoleKitBuilder`: the buttons, consoles, fault panels, the muster post,
+  body and bot markers, the credits panel). The SDK's click rays (`BSDesktopController.TryGetClickTarget`) cover layers
+  5 and 22 with `QueryTriggerInteraction.Collide`, so triggers are clicked. The SDK's seat prefab is a UI-layer
+  trigger that is documented as clickable "in the app and in Play mode". The docs say bodies pass through UI-layer
+  colliders anyway (`Docs/building-in-unity/layers.md`), and a trigger never pushes whatever the client's matrix does.
+
+Results on portkit `476075d`:
+
+- **Rung 0/1:** `npm test`: **52 tests, 52 pass** (48 before). New `test/panel.test.ts`: the follow rule; a visitor
+  with no match (nothing sent near the head, panel and shell at their park); lobby players, then a match (panel 0.55 m
+  in front of each rostered head), an observer during it, everyone after the match; the kit agrees (park position as
+  the builder has it, every collider on the UI layer of the built prefab a trigger). Tests 2 and 3 fail with the old
+  unconditional follow, and test 4 fails on the prefab built before.
+- **Rung 2:** Check PASS (graphs, 124 bindings, hash `126bf586`, the new "canvas colliders" line, both bundles);
+  Android 1,117 KiB, Windows 1,159 KiB; `HiddenRole/Check Walkable` PASS (70,654 of 70,654; 0 blocked; all reached).
+  Script 501,592 bytes.
+- **Rung 3** (`playtest/single.json`) has two new push checks. With no match: the panel stays in the bunkroom
+  (0, -69.45, 2.5 with the kit at 0 0.05 6, 71 m from the head), and `standstill 5` returns "ok still: body moved
+  0.000 m, player moved 0.000 m". In a match, in the muster ring: the panel is 0.65 m from the head and `standstill 5`
+  returns "ok still". Runs 1 and 2 had the in-match check at the start of match 1, so the person stood still while the
+  saboteur bot hunted. Run 1: 46 passed, 0 failed. Run 2: 44 passed, 3 failed, all scenario timing: the walk was cut
+  by a bot's muster, the match had ended before the bunkroom check, and a 1 m step after the vote met a wall. The
+  check then moved into the muster, where everyone stands still anyway. **Runs 3 and 4 in a row: 54 passed, 0 failed
+  and 32 passed, 0 failed**, 0 console errors (run 4 covered everything in one match; `playtest/evidence_single.txt`
+  is run 4). Every click in the runs (Join, Start, consoles, the post, the vote buttons) went to a trigger.
+- **Rung 4** (`playtest/multi.json`), twice in a row: **35 passed, 0 failed** each, 0 console errors (`playtest/evidence_multi.txt` is run 2).
+- **Artifacts:** Export Artifacts -> `dist/` (bindings `126bf586`).
+
+A caveat: in Play mode the old panel probably would not have pushed the stand-in either. Its buttons sat 0.3 m beyond
+the stand-in's radius, and the docs say bodies pass through layer 5. The Node tests are the ones that fail on the
+old code.
+
 ## Re-sync, 2026-11-25 (portkit c971100)
 
 Everything in this section ran on 2026-11-25 on Windows, Unity 6000.3.21f1, Creator SDK 4.0.29, in the Unity editor

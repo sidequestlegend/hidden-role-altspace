@@ -161,6 +161,12 @@ namespace PortKit
                         ok &= fine;
                     }
 
+                    // no world-space canvas may end up with a solid collider (KitBuilder.CanvasColliders)
+                    var solidCanvases = KitStage.SolidCanvases(prefab);
+                    report.AppendLine($"{(solidCanvases.Count == 0 ? "PASS" : "FAIL")} {kit.Slug} canvas colliders: " +
+                                      (solidCanvases.Count == 0 ? "every world-space canvas has a trigger box" : string.Join("; ", solidCanvases)));
+                    ok &= solidCanvases.Count == 0;
+
                     foreach (var (_, folder) in Targets)
                     {
                         string file = BundlePath(folder, kit.Slug);

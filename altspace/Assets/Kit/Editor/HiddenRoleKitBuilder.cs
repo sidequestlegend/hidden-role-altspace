@@ -332,6 +332,7 @@ namespace HiddenRole
             var go = stage.Create(name, parent);
             go.transform.localPosition = position;
             var box = go.AddComponent<BoxCollider>();
+            box.isTrigger = true;  // a click target only: triggers are clicked (layers 5 and 22, QueryTriggerInteraction.Collide) and never push a body
             box.size = new Vector3(w, h, 0.04f);
             Draw(go.transform, "Face", KitArt.Quad(), material, new Vector3(0, 0, 0.002f), new Vector3(w, h, 1));
             var label = Label(go.transform, "Label", text, w * 0.94f, h * 0.9f, textSize > 0 ? textSize : h * 5.5f, Color.white);
@@ -410,6 +411,7 @@ namespace HiddenRole
             var body = Label(panel.transform, "Text", CreditsText, 2.1f, 1.85f, 0.62f, Color.white, TextAlignmentOptions.TopLeft, true);
             body.transform.localPosition = new Vector3(0, 0, -0.002f);
             var box = panel.AddComponent<BoxCollider>();
+            box.isTrigger = true;  // clicked, never solid (see Button)
             box.size = new Vector3(2.25f, 1.95f, 0.04f);
             stage.Object(panel, key: "creditsPanel", click: true);
             stage.Event(panel, "click", hud, "ClickCredits");
@@ -480,6 +482,7 @@ namespace HiddenRole
             DrawPart(muster, "Ring", KitArt.Ring(2.65f, 2.95f, 64, 0.01f), "ring", Vector3.zero);
             var post = Draw(muster, "Post", KitArt.Cube(), "post", new Vector3(0, 1.06f, 0), new Vector3(0.34f, 0.12f, 0.34f));
             var postBox = post.AddComponent<BoxCollider>();
+            postBox.isTrigger = true;  // clicked, never solid (see Button)
             postBox.size = new Vector3(2.5f, 6f, 2.5f);                                   // a slim post, a generous click target
             StationButton(post, "post", 0);
             stage.Object(post, key: "musterPost");
@@ -607,6 +610,7 @@ namespace HiddenRole
                 cross.Add(Slab(0.7f, 0.03f, 0.11f), Matrix4x4.TRS(new Vector3(0, 0.03f, 0), Quaternion.Euler(0, -45, 0), Vector3.one));
                 DrawPart(body.transform, "Cross", cross, "downedMark", Vector3.zero);
                 var box = body.AddComponent<BoxCollider>();
+                box.isTrigger = true;  // clicked, never solid (see Button)
                 box.center = new Vector3(0, 0.3f, 0);
                 box.size = new Vector3(1.0f, 0.6f, 1.0f);
                 StationButton(body, "body", i);
@@ -634,6 +638,7 @@ namespace HiddenRole
                     name.transform.localRotation = Quaternion.Euler(0, side == 0 ? 0 : 180, 0);
                 }
                 var box = bot.AddComponent<BoxCollider>();
+                box.isTrigger = true;  // clicked, never solid (see Button)
                 box.center = new Vector3(0, 0.95f, 0);
                 box.size = new Vector3(0.6f, 1.9f, 0.6f);
                 StationButton(bot, "bot", i);
@@ -702,6 +707,7 @@ namespace HiddenRole
                 var screen = Draw(parent, $"Console{id:00}", KitArt.Quad(), "screen", pos + yaw * new Vector3(0, 1.08f, -0.06f), new Vector3(0.46f, 0.32f, 1f),
                                   yaw * Quaternion.Euler(35, 0, 0));
                 var box = screen.AddComponent<BoxCollider>();
+                box.isTrigger = true;  // clicked, never solid (see Button)
                 box.size = new Vector3(1.3f, 1.6f, 0.6f);                                   // in the screen's scaled units: 0.6 x 0.5 x 0.6 m
                 StationButton(screen, "job", id);
                 stage.Object(screen, key: "console" + id);
@@ -731,6 +737,7 @@ namespace HiddenRole
                 cabinets.Add(Slab(0.7f, 1.9f, 0.28f), Matrix4x4.TRS(pos + new Vector3(0, 0.95f, 0), yaw, Vector3.one));
                 var front = Draw(parent, "Panel" + n, KitArt.Quad(), "fault", pos + yaw * new Vector3(0, 1.2f, -0.145f), new Vector3(0.58f, 0.9f, 1), yaw);
                 var box = front.AddComponent<BoxCollider>();
+                box.isTrigger = true;  // clicked, never solid (see Button)
                 box.size = new Vector3(1.1f, 1.2f, 0.5f);
                 StationButton(front, "panel", n);
                 stage.Object(front, key: "faultPanel" + n);

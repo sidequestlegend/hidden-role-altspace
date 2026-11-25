@@ -9,648 +9,216 @@ local: script and bundles from the test server http://localhost:44100
 [main] oin to play.
 [main] PASS the hub board's text reached Unity (relay op text): HIDDEN ROLE  -  station shift / Lobby: 0 of 10 + 5 bot(s) (need 4)
 [main] CMD h3 stats
-[main] REPLY h3 triangles 7570 vertices 15152 batches 131 drawcalls 131 setpass 19 shadowcasters 4 frame 4.3ms render 1.6ms
-[main] INFO frame stats at the spawn, before walking (regions drawn 20 of 30): triangles 7570 vertices 15152 batches 131 drawcalls 131 setpass 19 shadowcasters 4 frame 4.3ms render 1.6ms
+[main] REPLY h3 triangles 7438 vertices 14888 batches 128 drawcalls 128 setpass 17 shadowcasters 4 frame 6.0ms render 2.8ms
+[main] INFO frame stats at the spawn, before walking (regions drawn 20 of 30): triangles 7438 vertices 14888 batches 128 drawcalls 128 setpass 17 shadowcasters 4 frame 6.0ms render 2.8ms
 [main] CMD h4 shot commons -6 1.75 -3 0 1.45 12 75
 [main] REPLY h4 Library/PortKit/shots/hidden-role-single_commons.jpg
 [main] INFO shot commons: Library/PortKit/shots/hidden-role-single_commons.jpg
-[main] CMD h5 walk 0.000 15.020 3.5
-[main] REPLY h5 ok reached 0.00 14.91
-[main] CMD h6 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Join
-[main] REPLY h6 1.150 2.580 17.545
-[main] CMD h7 look 1.150 2.580 17.545
-[main] REPLY h7 ok camera at 0.00,1.60,14.91
-[main] CMD h8 pointer 1.150 2.580 17.545
-[main] REPLY h8 ok screen 585,512 of 1169x1024
-[main] CMD h9 click 1.150 2.580 17.545
-[main] REPLY h9 ok screen 585,512 of 1169x1024
-[main] INFO click Join: ok screen 585,512 of 1169x1024 at 1.150 2.580 17.545
+[main] CMD h5 where
+[main] REPLY h5 0.00 0.00 0.00 camera 0.00 1.60 0.00
+[main] CMD h6 probe pk1:hidden-role:0 pos Personal/Panel
+[main] REPLY h6 0.000 -69.450 2.500
+[main] PASS with no match the personal panel stays where the kit put it (the bunkroom), not at the head: panel 0.00,-69.45,2.50, head 0.00,1.60,0.00, 71.1 m
+[main] CMD h7 standstill 5
+[main] REPLY h7 ok still: body moved 0.000 m, player moved 0.000 m in 5 s at 0.00,0.00,0.00, touched none
+[main] PASS a body standing still for 5 s with no match is not pushed: ok still: body moved 0.000 m, player moved 0.000 m in 5 s at 0.00,0.00,0.00, touched none
+[main] CMD h8 walk 0.000 15.020 3.5
+[main] REPLY h8 ok reached 0.00 14.91
+[main] CMD h9 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Join
+[main] REPLY h9 1.150 2.580 17.545
+[main] CMD h10 look 1.150 2.580 17.545
+[main] REPLY h10 ok camera at 0.00,1.60,14.91
+[main] CMD h11 pointer 1.150 2.580 17.545
+[main] REPLY h11 ok screen 584,512 of 1169x1024
+[main] CMD h12 click 1.150 2.580 17.545
+[main] REPLY h12 ok screen 584,512 of 1169x1024
+[main] INFO click Join: ok screen 584,512 of 1169x1024 at 1.150 2.580 17.545
 [main] PASS Join on the hub board puts the player in the lobby (click through the SDK's desktop player): joined true
-[main] PASS the one lobby player is elected referee (declared candidates): referee {"sid":"rsess_28743c08-6dcf-4d84-9031-e06190b7ba25","uid":"ea71beabbcdd9d67f76671884c9073a7","term":1,"e":1}
-[main] CMD h10 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
-[main] REPLY h10 1.150 2.260 17.545
-[main] CMD h11 look 1.150 2.260 17.545
-[main] REPLY h11 ok camera at 0.00,1.60,14.91
-[main] CMD h12 pointer 1.150 2.260 17.545
-[main] REPLY h12 ok screen 585,512 of 1169x1024
-[main] CMD h13 click 1.150 2.260 17.545
-[main] REPLY h13 ok screen 585,512 of 1169x1024
+[main] PASS the one lobby player is elected referee (declared candidates): referee {"sid":"rsess_137dcba5-b4cc-4353-870a-2964b9b7ee76","uid":"ea71beabbcdd9d67f76671884c9073a7","term":1,"e":1}
+[main] CMD h13 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
+[main] REPLY h13 1.150 2.260 17.545
+[main] CMD h14 look 1.150 2.260 17.545
+[main] REPLY h14 ok camera at 0.00,1.60,14.91
+[main] CMD h15 pointer 1.150 2.260 17.545
+[main] REPLY h15 ok screen 585,512 of 1169x1024
+[main] CMD h16 click 1.150 2.260 17.545
+[main] REPLY h16 ok screen 585,512 of 1169x1024
 [main] INFO click Start: ok screen 585,512 of 1169x1024 at 1.150 2.260 17.545
 [main] PASS a match starts with five bots (match 1): state 1, roster Main Editor, Bot 1*, Bot 2*, Bot 3*, Bot 4*, Bot 5*
 [main] PASS the roster is the person and five bots: Main Editor, Bot 1, Bot 2, Bot 3, Bot 4, Bot 5
 [main] PASS the person's own role arrives sealed: technician: role technician, public roles []
-[main] CMD h14 where
-[main] REPLY h14 33.27 0.05 -36.42 camera 33.27 1.65 -36.42
-[main] PASS the person is taken to their start point: start 33.27,-42.42, Unity feet 33.27 0.05 -36.42 camera 33.27 1.65 -36.42
-[main] CMD h15 probe pk1:hidden-role:0 active Station/Bots/Bot0
-[main] REPLY h15 True
-[main] CMD h16 probe pk1:hidden-role:0 pos Station/Bots/Bot0
-[main] REPLY h16 -49.000 1.000 -16.450
-[main] CMD h17 probe pk1:hidden-role:0 pos Station/Bots/Bot0
-[main] REPLY h17 -47.910 1.000 -14.290
-[main] PASS bot markers stand in the station and move: -49.000 1.000 -16.450 -> -47.910 1.000 -14.290
-[main] CMD h18 probe pk1:hidden-role:0 text Personal/Panel/Text
-[main] REPLY h18 You are a TECHNICIAN
+[main] CMD h17 where
+[main] REPLY h17 1.74 0.05 54.42 camera 1.74 1.65 54.42
+[main] PASS the person is taken to their start point: start 1.74,48.42, Unity feet 1.74 0.05 54.42 camera 1.74 1.65 54.42
+[main] CMD h18 probe pk1:hidden-role:0 active Station/Bots/Bot0
+[main] REPLY h18 True
+[main] CMD h19 probe pk1:hidden-role:0 pos Station/Bots/Bot0
+[main] REPLY h19 30.470 1.000 -32.170
+[main] CMD h20 probe pk1:hidden-role:0 pos Station/Bots/Bot0
+[main] REPLY h20 32.170 1.000 -31.110
+[main] PASS bot markers stand in the station and move: 30.470 1.000 -32.170 -> 32.170 1.000 -31.110
+[main] CMD h21 probe pk1:hidden-role:0 text Personal/Panel/Text
+[main] REPLY h21 You are a TECHNICIAN
 [main] lock: 898s
 [main]  left):
-[main] ce the main pump (Timing) - Pump Hall 30 m
-[main] hydrophone gain (Timing) - Sonar Room 72 m
-[main]  the hydrophone tape (Hold) - Sonar Room 79 m
-[main]  out the lime trays (Tap) - Scrubber Room 95 m
-[main] d the chamber gauge (Hold) - Moon Pool 100 m
-[main] last Control
+[main]  the floodlights (Timing) - Lantern Dome 6 m
+[main] l the hydrophone tape (Hold) - Sonar Room 30 m
+[main] the recompression valve (Timing) - Moon Pool 54 m
+[main] the wetsuit racks (Tap) - Tether Room 61 m
+[main] k the impeller housing (Hold) - Pump Hall 91 m
+[main] tern Dome
 [main] PASS the personal panel shows the person's role and jobs: You are a TECHNICIAN / Shift clock: 898s / Jobs (5 left):
-[main] INFO nearest job: 10 Balance the main pump (timing), route 33.8 m
-[main] CMD h19 walk 36.500 -28.500 3.5
-[main] REPLY h19 ok reached 36.46 -28.60
-[main] CMD h20 walk 39.500 -26.500 3.5
-[main] REPLY h20 ok reached 39.40 -26.57
-[main] CMD h21 walk 41.500 -24.500 3.5
-[main] REPLY h21 ok reached 41.45 -24.59
-[main] CMD h22 walk 43.500 -21.500 3.5
-[main] REPLY h22 ok reached 43.44 -21.60
-[main] CMD h23 walk 41.500 -13.500 3.5
-[main] REPLY h23 ok reached 41.53 -13.60
-[main] CMD h24 walk 39.150 -7.392 3.5
-[main] REPLY h24 ok reached 39.19 -7.50
-[main] CMD h25 stats
-[main] REPLY h25 triangles 9012 vertices 16941 batches 136 drawcalls 136 setpass 18 shadowcasters 3 frame 5.3ms render 1.4ms
-[main] INFO frame stats on the way, at console 10 (regions drawn 12 of 30): triangles 9012 vertices 16941 batches 136 drawcalls 136 setpass 18 shadowcasters 3 frame 5.3ms render 1.4ms
-[main] PASS the person walks to a job console through the station (capsule against the kit's colliders): 6 legs in 12.4 s,
-[main] CMD h26 probe pk1:hidden-role:0 pos Station/Regions/R10/Console10
-[main] REPLY h26 38.910 1.130 -7.000
-[main] CMD h27 look 38.910 1.130 -7.000
-[main] REPLY h27 ok camera at 39.19,1.65,-7.50
-[main] CMD h28 pointer 38.910 1.130 -7.000
+[main] INFO nearest job: 5 Focus the floodlights (timing), route 5.7 m
+[main] CMD h22 walk 0.128 49.400 3.5
+[main] REPLY h22 ok reached 0.16 49.49
+[main] CMD h23 stats
+[main] REPLY h23 triangles 10372 vertices 15539 batches 84 drawcalls 84 setpass 16 shadowcasters 3 frame 11.0ms render 1.1ms
+[main] INFO frame stats on the way, at console 5 (regions drawn 10 of 30): triangles 10372 vertices 15539 batches 84 drawcalls 84 setpass 16 shadowcasters 3 frame 11.0ms render 1.1ms
+[main] PASS the person walks to a job console through the station (capsule against the kit's colliders): 1 legs in 2.5 s,
+[main] CMD h24 probe pk1:hidden-role:0 pos Station/Regions/R27/Console05
+[main] REPLY h24 0.000 1.130 48.910
+[main] CMD h25 look 0.000 1.130 48.910
+[main] REPLY h25 ok camera at 0.16,1.65,49.49
+[main] CMD h26 pointer 0.000 1.130 48.910
+[main] REPLY h26 ok screen 584,512 of 1169x1024
+[main] CMD h27 probe pk1:hidden-role:0 pos Station/Regions/R27/Console05
+[main] REPLY h27 0.000 1.130 48.910
+[main] CMD h28 click 0.000 1.130 48.910
 [main] REPLY h28 ok screen 584,512 of 1169x1024
-[main] CMD h29 probe pk1:hidden-role:0 pos Station/Regions/R10/Console10
-[main] REPLY h29 38.910 1.130 -7.000
-[main] CMD h30 click 38.910 1.130 -7.000
-[main] REPLY h30 ok screen 584,512 of 1169x1024
-[main] CMD h31 click 38.910 1.130 -7.000
-[main] REPLY h31 ok screen 584,512 of 1169x1024
-[main] INFO console 10 (timing) attempt 1: done true, work bar peaked at 0.72
-[main] PASS the work bar on the personal panel moves while the job is worked: peak 0.72
-[main] PASS a job is completed by clicking its console: job 10 (timing)
-[main] CMD h32 probe pk1:hidden-role:0 scale Station/Regions/R15/Hub/Board/JobBar/Fill
-[main] REPLY h32 0.120 1.000 1.000
-[main] PASS the jobs-done bar shows the station's progress (hub board, read in Unity): jobs 3/25, fill 0.120 1.000 1.000
-[main] CMD h33 probe pk1:hidden-role:0 scale Personal/Panel/JobBar/Fill
-[main] REPLY h33 0.120 1.000 1.000
-[main] PASS the personal panel's jobs bar shows it too: 0.120 1.000 1.000
-[main] CMD h34 shot console 39 1.75 -9.5 39 1.1500000000000001 -7 70
-[main] REPLY h34 Library/PortKit/shots/hidden-role-single_console.jpg
+[main] CMD h29 click 0.000 1.130 48.910
+[main] REPLY h29 ok screen 584,512 of 1169x1024
+[main] INFO console 5 (timing) attempt 1: done true, work bar peaked at 0.68
+[main] PASS the work bar on the personal panel moves while the job is worked: peak 0.68
+[main] PASS a job is completed by clicking its console: job 5 (timing)
+[main] CMD h30 probe pk1:hidden-role:0 scale Station/Regions/R15/Hub/Board/JobBar/Fill
+[main] REPLY h30 0.040 1.000 1.000
+[main] PASS the jobs-done bar shows the station's progress (hub board, read in Unity): jobs 1/25, fill 0.040 1.000 1.000
+[main] CMD h31 probe pk1:hidden-role:0 scale Personal/Panel/JobBar/Fill
+[main] REPLY h31 0.040 1.000 1.000
+[main] PASS the personal panel's jobs bar shows it too: 0.040 1.000 1.000
+[main] CMD h32 shot console 0 1.75 46.5 0 1.1500000000000001 49 70
+[main] REPLY h32 Library/PortKit/shots/hidden-role-single_console.jpg
 [main] INFO shot console: Library/PortKit/shots/hidden-role-single_console.jpg
-[main] CMD h35 where
-[main] REPLY h35 39.19 0.05 -7.50 camera 39.19 1.65 -7.50
-[main] CMD h36 place 0.00 0.10 3.00
-[main] REPLY h36 ok 0.00 0.10 3.00 camera 0.00 1.70 3.00
+[main] CMD h33 where
+[main] REPLY h33 0.16 0.05 49.49 camera 0.16 1.65 49.49
+[main] CMD h34 place 0.00 0.10 3.00
+[main] REPLY h34 ok 0.00 0.10 3.00 camera 0.00 1.70 3.00
 [main] INFO jump to the Commons: ok 0.00 0.10 3.00 camera 0.00 1.70 3.00
-[main] PASS a jump the page did not make is not taken by the referee (its own position follows at most at a run): page at 0.00,-3.00, referee's position 45.86,-9.55, 7.7 m from the start after 1.0 s
-[main] CMD h37 place 39.19 0.05 -7.50
-[main] REPLY h37 ok 39.19 0.05 -7.50 camera 39.19 1.65 -7.50
-[main] INFO back: ok 39.19 0.05 -7.50 camera 39.19 1.65 -7.50
-[main] PASS put back where it was, the referee's position comes back to the person: 39.19,-13.50
-[main] INFO Bot 5 is down at 10.34,-43.63
-[main] CMD h38 probe pk1:hidden-role:0 text Station/Regions/R15/Hub/Board/Text
-[main] REPLY h38 HIDDEN ROLE  -  station shift
-[main] lock: 858s
-[main] ne: 4 / 30
+[main] PASS a jump the page did not make is not taken by the referee (its own position follows at most at a run): page at 0.00,-3.00, referee's position 8.62,44.32, 8.5 m from the start after 1.0 s
+[main] CMD h35 place 0.16 0.05 49.49
+[main] REPLY h35 ok 0.16 0.05 49.49 camera 0.16 1.65 49.49
+[main] INFO back: ok 0.16 0.05 49.49 camera 0.16 1.65 49.49
+[main] PASS put back where it was, the referee's position comes back to the person: 0.36,43.51
+[main] INFO Bot 2 is down at 45.04,5.78
+[main] CMD h36 probe pk1:hidden-role:0 text Station/Regions/R15/Hub/Board/Text
+[main] REPLY h36 HIDDEN ROLE  -  station shift
+[main] lock: 866s
+[main] ne: 2 / 30
 [main] itor: on shift
 [main] bot): on shift
 [main] bot): on shift
 [main] bot): on shift
 [main] bot): on shift
 [main] bot): on shift
-[main] PASS a downed bot's jobs stay in the hub board's total until the death is seen: Jobs done: 4 / 30, highest total 30
-[main] CMD h39 walk 43.500 -21.500 3.5
-[main] REPLY h39 ok reached 43.48 -21.39
-[main] CMD h40 walk 41.500 -24.500 3.5
-[main] REPLY h40 ok reached 41.56 -24.42
-[main] CMD h41 walk 39.500 -26.500 3.5
-[main] REPLY h41 ok reached 39.60 -26.45
-[main] CMD h42 walk 24.500 -34.500 3.5
-[main] REPLY h42 ok reached 24.60 -34.44
-[main] CMD h43 walk 4.500 -6.500 3.5
-[main] REPLY h43 blocked at 4.20 2.25, 8.76 m short by Solid BoxCollider
-[main] INFO to the body leg 5 toward 4.50,-12.50: blocked at 4.20 2.25, 8.76 m short by Solid BoxCollider
-[main] CMD h44 walk 4.500 -12.500 3.5
-[main] REPLY h44 blocked at 4.29 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 6 toward 4.50,-18.50: blocked at 4.29 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h45 walk 4.500 -12.500 3.5
-[main] REPLY h45 blocked at 4.35 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 7 toward 4.50,-18.50: blocked at 4.35 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h46 walk 4.500 -12.500 3.5
-[main] REPLY h46 blocked at 4.40 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 8 toward 4.50,-18.50: blocked at 4.40 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h47 walk 4.500 -12.500 3.5
-[main] REPLY h47 blocked at 4.42 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 9 toward 4.50,-18.50: blocked at 4.42 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h48 walk 4.500 -12.500 3.5
-[main] REPLY h48 blocked at 4.42 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 10 toward 4.50,-18.50: blocked at 4.42 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h49 walk 4.500 -12.500 3.5
-[main] REPLY h49 blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 11 toward 4.50,-18.50: blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h50 walk 4.500 -12.500 3.5
-[main] REPLY h50 blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 12 toward 4.50,-18.50: blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h51 walk 4.500 -12.500 3.5
-[main] REPLY h51 blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 13 toward 4.50,-18.50: blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h52 walk 4.500 -12.500 3.5
-[main] REPLY h52 blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 14 toward 4.50,-18.50: blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h53 walk 4.500 -12.500 3.5
-[main] REPLY h53 blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 15 toward 4.50,-18.50: blocked at 4.43 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h54 walk 4.500 -12.500 3.5
-[main] REPLY h54 blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 16 toward 4.50,-18.50: blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h55 walk 4.500 -12.500 3.5
-[main] REPLY h55 blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 17 toward 4.50,-18.50: blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h56 walk 4.500 -12.500 3.5
-[main] REPLY h56 blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 18 toward 4.50,-18.50: blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h57 walk 4.500 -12.500 3.5
-[main] REPLY h57 blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] INFO to the body leg 19 toward 4.50,-18.50: blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider
-[main] CMD h58 walk 4.500 -12.500 3.5
-[main] REPLY h58 blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider (movement locked)
-[main] INFO to the body leg 20 toward 4.50,-18.50: blocked at 4.44 2.25, 14.75 m short by Solid BoxCollider (movement locked)
-[main] CMD h59 where
-[main] REPLY h59 4.44 -69.95 2.25 camera 4.44 -68.35 2.25
-[main] CMD h60 probe pk1:hidden-role:0 pos Lounge/Board/Abort
-[main] REPLY h60 1.100 -67.600 9.895
-[main] CMD h61 look 1.100 -67.600 9.895
-[main] REPLY h61 ok camera at 4.44,-68.35,2.25
-[main] CMD h62 pointer 1.100 -67.600 9.895
-[main] REPLY h62 ok screen 585,512 of 1169x1024
-[main] CMD h63 click 1.100 -67.600 9.895
-[main] REPLY h63 ok screen 585,512 of 1169x1024
-[main] INFO click Stop match (lounge board): ok screen 585,512 of 1169x1024 at 1.100 -67.600 9.895
-[main] CMD h64 walk -0.142 15.090 3.5
-[main] REPLY h64 ok reached -0.22 15.03
-[main] CMD h65 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
-[main] REPLY h65 1.150 2.260 17.545
-[main] CMD h66 look 1.150 2.260 17.545
-[main] REPLY h66 ok camera at -0.22,1.65,15.03
-[main] CMD h67 pointer 1.150 2.260 17.545
-[main] REPLY h67 ok screen 584,512 of 1169x1024
-[main] CMD h68 click 1.150 2.260 17.545
-[main] REPLY h68 ok screen 584,512 of 1169x1024
-[main] INFO click Start: ok screen 584,512 of 1169x1024 at 1.150 2.260 17.545
-[main] PASS a match starts with five bots (match 2): state 1, roster Main Editor, Bot 1*, Bot 2*, Bot 3*, Bot 4*, Bot 5*
-[main] PASS the roster is the person and five bots: Main Editor, Bot 1, Bot 2, Bot 3, Bot 4, Bot 5
-[main] PASS the person's own role arrives sealed: technician: role technician, public roles []
-[main] CMD h69 where
-[main] REPLY h69 54.52 0.05 -15.01 camera 54.52 1.65 -15.01
-[main] PASS the person is taken to their start point: start 54.52,-21.01, Unity feet 54.52 0.05 -15.01 camera 54.52 1.65 -15.01
-[main] CMD h70 probe pk1:hidden-role:0 active Station/Bots/Bot0
-[main] REPLY h70 True
-[main] CMD h71 probe pk1:hidden-role:0 pos Station/Bots/Bot0
-[main] REPLY h71 -6.360 1.000 -0.310
-[main] CMD h72 probe pk1:hidden-role:0 pos Station/Bots/Bot0
-[main] REPLY h72 -8.190 1.000 -1.930
-[main] PASS bot markers stand in the station and move: -6.360 1.000 -0.310 -> -8.190 1.000 -1.930
-[main] CMD h73 probe pk1:hidden-role:0 text Personal/Panel/Text
-[main] REPLY h73 You are a TECHNICIAN
-[main] lock: 898s
-[main]  left):
-[main]  the bilge line (Tap) - Pump Hall 12 m
-[main] the flood dampers (Tap) - Ballast Control 31 m
-[main]  the cable run (Tap) - Battery Bay 48 m
-[main] the reserve bottles (Hold) - Scrubber Room 98 m
-[main]  the chamber gauge (Hold) - Moon Pool 112 m
-[main] p Hall
-[main] PASS the personal panel shows the person's role and jobs: You are a TECHNICIAN / Shift clock: 898s / Jobs (5 left):
-[main] INFO Bot 5 is down at -8.81,-30.16
-[main] CMD h74 probe pk1:hidden-role:0 text Station/Regions/R15/Hub/Board/Text
-[main] REPLY h74 HIDDEN ROLE  -  station shift
-[main] lock: 885s
-[main] ne: 0 / 25
-[main] itor: on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] PASS a downed bot's jobs stay in the hub board's total until the death is seen: Jobs done: 0 / 25, highest total 25
-[main] CMD h75 walk 39.500 -26.500 3.5
-[main] REPLY h75 ok reached 39.60 -26.45
-[main] CMD h76 walk 24.500 -34.500 3.5
-[main] REPLY h76 ok reached 24.60 -34.45
-[main] CMD h77 walk 23.500 -35.500 3.5
-[main] REPLY h77 ok reached 23.60 -35.45
-[main] CMD h78 walk 16.500 -40.500 3.5
-[main] REPLY h78 ok reached 16.58 -40.44
-[main] CMD h79 walk 15.500 -41.500 3.5
-[main] REPLY h79 ok reached 15.55 -41.40
-[main] CMD h80 walk 13.500 -41.500 3.5
-[main] REPLY h80 ok reached 13.61 -41.49
-[main] CMD h81 walk 0.500 -32.500 3.5
-[main] REPLY h81 ok reached 0.59 -32.56
-[main] CMD h82 walk -7.500 -10.500 3.5
-[main] REPLY h82 blocked at -5.75 2.25, 12.87 m short by Solid BoxCollider
-[main] INFO to the body leg 8 toward -7.50,-16.50: blocked at -5.75 2.25, 12.87 m short by Solid BoxCollider
-[main] CMD h83 walk -8.500 -12.500 3.5
-[main] REPLY h83 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 9 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h84 walk -8.500 -12.500 3.5
-[main] REPLY h84 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 10 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h85 walk -8.500 -12.500 3.5
-[main] REPLY h85 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 11 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h86 walk -8.500 -12.500 3.5
-[main] REPLY h86 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 12 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h87 walk -8.500 -12.500 3.5
-[main] REPLY h87 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 13 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h88 walk -8.500 -12.500 3.5
-[main] REPLY h88 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 14 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h89 walk -8.500 -12.500 3.5
-[main] REPLY h89 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 15 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h90 walk -8.500 -12.500 3.5
-[main] REPLY h90 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 16 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h91 walk -8.500 -12.500 3.5
-[main] REPLY h91 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 17 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h92 walk -8.500 -12.500 3.5
-[main] REPLY h92 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 18 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h93 walk -8.500 -12.500 3.5
-[main] REPLY h93 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 19 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h94 walk -8.500 -12.500 3.5
-[main] REPLY h94 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 20 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h95 walk -8.500 -12.500 3.5
-[main] REPLY h95 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 21 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h96 walk -8.500 -12.500 3.5
-[main] REPLY h96 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 22 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h97 walk -8.500 -12.500 3.5
-[main] REPLY h97 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 23 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h98 walk -8.500 -12.500 3.5
-[main] REPLY h98 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 24 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h99 walk -8.500 -12.500 3.5
-[main] REPLY h99 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 25 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h100 walk -8.500 -12.500 3.5
-[main] REPLY h100 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 26 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h101 walk -8.500 -12.500 3.5
-[main] REPLY h101 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 27 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h102 walk -8.500 -12.500 3.5
-[main] REPLY h102 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 28 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h103 walk -8.500 -12.500 3.5
-[main] REPLY h103 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 29 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h104 walk -8.500 -12.500 3.5
-[main] REPLY h104 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 30 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h105 walk -8.500 -12.500 3.5
-[main] REPLY h105 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 31 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h106 walk -8.500 -12.500 3.5
-[main] REPLY h106 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 32 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h107 walk -8.500 -12.500 3.5
-[main] REPLY h107 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 33 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h108 walk -8.500 -12.500 3.5
-[main] REPLY h108 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 34 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h109 walk -8.500 -12.500 3.5
-[main] REPLY h109 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 35 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h110 walk -8.500 -12.500 3.5
-[main] REPLY h110 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 36 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h111 walk -8.500 -12.500 3.5
-[main] REPLY h111 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 37 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h112 walk -8.500 -12.500 3.5
-[main] REPLY h112 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 38 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h113 walk -8.500 -12.500 3.5
-[main] REPLY h113 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 39 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h114 walk -8.500 -12.500 3.5
-[main] REPLY h114 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 40 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h115 walk -8.500 -12.500 3.5
-[main] REPLY h115 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 41 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h116 walk -8.500 -12.500 3.5
-[main] REPLY h116 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 42 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h117 walk -8.500 -12.500 3.5
-[main] REPLY h117 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 43 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h118 walk -8.500 -12.500 3.5
-[main] REPLY h118 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 44 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h119 walk -8.500 -12.500 3.5
-[main] REPLY h119 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 45 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h120 walk -8.500 -12.500 3.5
-[main] REPLY h120 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 46 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h121 walk -8.500 -12.500 3.5
-[main] REPLY h121 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 47 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h122 walk -8.500 -12.500 3.5
-[main] REPLY h122 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 48 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h123 walk -8.500 -12.500 3.5
-[main] REPLY h123 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 49 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h124 walk -8.500 -12.500 3.5
-[main] REPLY h124 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 50 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h125 walk -8.500 -12.500 3.5
-[main] REPLY h125 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 51 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h126 walk -8.500 -12.500 3.5
-[main] REPLY h126 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 52 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h127 walk -8.500 -12.500 3.5
-[main] REPLY h127 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 53 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h128 walk -8.500 -12.500 3.5
-[main] REPLY h128 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 54 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h129 walk -8.500 -12.500 3.5
-[main] REPLY h129 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 55 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h130 walk -8.500 -12.500 3.5
-[main] REPLY h130 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 56 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h131 walk -8.500 -12.500 3.5
-[main] REPLY h131 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 57 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h132 walk -8.500 -12.500 3.5
-[main] REPLY h132 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 58 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h133 walk -8.500 -12.500 3.5
-[main] REPLY h133 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 59 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h134 walk -8.500 -12.500 3.5
-[main] REPLY h134 blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] INFO to the body leg 60 toward -8.50,-18.50: blocked at -5.75 2.25, 15.01 m short by Solid BoxCollider
-[main] CMD h135 where
-[main] REPLY h135 -5.75 -69.95 2.25 camera -5.75 -68.35 2.25
-[main] CMD h136 probe pk1:hidden-role:0 pos Lounge/Board/Abort
-[main] REPLY h136 1.100 -67.600 9.895
-[main] CMD h137 look 1.100 -67.600 9.895
-[main] REPLY h137 ok camera at -5.75,-68.35,2.25
-[main] CMD h138 pointer 1.100 -67.600 9.895
-[main] REPLY h138 ok screen 584,512 of 1169x1024
-[main] CMD h139 click 1.100 -67.600 9.895
-[main] REPLY h139 ok screen 584,512 of 1169x1024
-[main] INFO click Stop match (lounge board): ok screen 584,512 of 1169x1024 at 1.100 -67.600 9.895
-[main] CMD h140 walk -0.073 15.035 3.5
-[main] REPLY h140 ok reached -0.17 14.96
-[main] CMD h141 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
-[main] REPLY h141 1.150 2.260 17.545
-[main] CMD h142 look 1.150 2.260 17.545
-[main] REPLY h142 ok camera at -0.17,1.65,14.96
-[main] CMD h143 pointer 1.150 2.260 17.545
-[main] REPLY h143 ok screen 585,512 of 1169x1024
-[main] CMD h144 click 1.150 2.260 17.545
-[main] REPLY h144 ok screen 585,512 of 1169x1024
-[main] INFO click Start: ok screen 585,512 of 1169x1024 at 1.150 2.260 17.545
-[main] PASS a match starts with five bots (match 3): state 1, roster Main Editor, Bot 1*, Bot 2*, Bot 3*, Bot 4*, Bot 5*
-[main] PASS the roster is the person and five bots: Main Editor, Bot 1, Bot 2, Bot 3, Bot 4, Bot 5
-[main] PASS the person's own role arrives sealed: technician: role technician, public roles []
-[main] CMD h145 where
-[main] REPLY h145 -39.71 0.05 -15.96 camera -39.71 1.65 -15.96
-[main] PASS the person is taken to their start point: start -39.71,-21.96, Unity feet -39.71 0.05 -15.96 camera -39.71 1.65 -15.96
-[main] CMD h146 probe pk1:hidden-role:0 active Station/Bots/Bot0
-[main] REPLY h146 True
-[main] CMD h147 probe pk1:hidden-role:0 pos Station/Bots/Bot0
-[main] REPLY h147 4.740 1.000 51.400
-[main] CMD h148 probe pk1:hidden-role:0 pos Station/Bots/Bot0
-[main] REPLY h148 7.110 1.000 51.030
-[main] PASS bot markers stand in the station and move: 4.740 1.000 51.400 -> 7.110 1.000 51.030
-[main] CMD h149 probe pk1:hidden-role:0 text Personal/Panel/Text
-[main] REPLY h149 You are a TECHNICIAN
-[main] lock: 898s
-[main]  left):
-[main]  loose crates (Tap) - Kelp Store 32 m
-[main] t the cell clamps (Tap) - Battery Bay 45 m
-[main]  the trim tanks (Timing) - Ballast Control 69 m
-[main] s the floodlights (Timing) - Lantern Dome 76 m
-[main] ce the main pump (Timing) - Pump Hall 79 m
-[main] ubber Room
-[main] PASS the personal panel shows the person's role and jobs: You are a TECHNICIAN / Shift clock: 898s / Jobs (5 left):
-[main] INFO Bot 2 is down at 42.48,15.55
-[main] CMD h150 probe pk1:hidden-role:0 text Station/Regions/R15/Hub/Board/Text
-[main] REPLY h150 HIDDEN ROLE  -  station shift
-[main] lock: 865s
-[main] ne: 0 / 30
-[main] Sonar jam
-[main] itor: on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] bot): on shift
-[main] PASS a downed bot's jobs stay in the hub board's total until the death is seen: Jobs done: 0 / 30, highest total 30
-[main] CMD h151 walk -34.500 -17.500 3.5
-[main] REPLY h151 ok reached -34.60 -17.48
-[main] CMD h152 walk -31.500 -15.500 3.5
-[main] REPLY h152 ok reached -31.59 -15.56
-[main] CMD h153 walk -25.500 -12.500 3.5
-[main] REPLY h153 ok reached -25.59 -12.55
-[main] CMD h154 walk -15.500 -12.500 3.5
-[main] REPLY h154 ok reached -15.62 -12.50
-[main] CMD h155 walk -0.500 1.500 3.5
-[main] REPLY h155 ok reached -0.58 1.42
-[main] CMD h156 walk 14.500 8.500 3.5
-[main] REPLY h156 ok reached 14.41 8.46
-[main] CMD h157 walk 16.500 10.500 3.5
-[main] REPLY h157 ok reached 16.41 10.45
-[main] CMD h158 walk 31.500 16.500 3.5
-[main] REPLY h158 ok reached 31.40 16.46
-[main] CMD h159 walk 40.500 17.500 3.5
-[main] REPLY h159 ok reached 40.39 17.49
-[main] CMD h160 walk 41.500 18.500 3.5
-[main] REPLY h160 ok reached 41.45 18.40
-[main] CMD h161 walk 42.294 20.980 3.5
-[main] REPLY h161 ok reached 42.26 20.88
-[main] CMD h162 probe pk1:hidden-role:0 active Station/Bodies/Body2
-[main] REPLY h162 True
+[main] PASS a downed bot's jobs stay in the hub board's total until the death is seen: Jobs done: 2 / 30, highest total 30
+[main] CMD h37 walk 10.500 50.500 3.5
+[main] REPLY h37 ok reached 10.39 50.49
+[main] CMD h38 walk 14.500 48.500 3.5
+[main] REPLY h38 ok reached 14.42 48.54
+[main] CMD h39 walk 16.500 47.500 3.5
+[main] REPLY h39 ok reached 16.41 47.54
+[main] CMD h40 walk 19.500 46.500 3.5
+[main] REPLY h40 ok reached 19.39 46.54
+[main] CMD h41 walk 21.500 45.500 3.5
+[main] REPLY h41 ok reached 21.40 45.55
+[main] CMD h42 walk 27.500 44.500 3.5
+[main] REPLY h42 ok reached 27.43 44.51
+[main] CMD h43 walk 39.500 34.500 3.5
+[main] REPLY h43 ok reached 39.42 34.57
+[main] CMD h44 walk 40.500 33.500 3.5
+[main] REPLY h44 ok reached 40.45 33.58
+[main] CMD h45 walk 42.500 29.500 3.5
+[main] REPLY h45 ok reached 42.45 29.60
+[main] CMD h46 walk 44.500 26.500 3.5
+[main] REPLY h46 ok reached 44.44 26.59
+[main] CMD h47 walk 47.500 19.500 3.5
+[main] REPLY h47 ok reached 47.46 19.60
+[main] CMD h48 walk 47.500 14.500 3.5
+[main] REPLY h48 ok reached 47.50 14.62
+[main] CMD h49 walk 45.433 12.233 3.5
+[main] REPLY h49 ok reached 45.51 12.32
+[main] CMD h50 probe pk1:hidden-role:0 active Station/Bodies/Body2
+[main] REPLY h50 True
 [main] PASS the downed bot's marker lies where it fell: Station/Bodies/Body2 active True
-[main] CMD h163 probe pk1:hidden-role:0 pos Station/Bodies/Body2
-[main] REPLY h163 42.480 0.400 21.550
-[main] CMD h164 look 42.480 0.400 21.550
-[main] REPLY h164 ok camera at 42.26,1.65,20.88
-[main] CMD h165 pointer 42.480 0.400 21.550
-[main] REPLY h165 ok screen 585,512 of 1169x1024
-[main] CMD h166 click 42.480 0.400 21.550
-[main] REPLY h166 ok screen 585,512 of 1169x1024
-[main] INFO click the body marker (raise the alarm): ok screen 585,512 of 1169x1024 at 42.480 0.400 21.550
+[main] CMD h51 probe pk1:hidden-role:0 pos Station/Bodies/Body2
+[main] REPLY h51 45.040 0.400 11.780
+[main] CMD h52 look 45.040 0.400 11.780
+[main] REPLY h52 ok camera at 45.51,1.65,12.32
+[main] CMD h53 pointer 45.040 0.400 11.780
+[main] REPLY h53 ok screen 584,512 of 1169x1024
+[main] CMD h54 click 45.040 0.400 11.780
+[main] REPLY h54 ok screen 584,512 of 1169x1024
+[main] INFO click the body marker (raise the alarm): ok screen 584,512 of 1169x1024 at 45.040 0.400 11.780
 [main] PASS raising the alarm at a downed bot calls a muster: walked true, state 2, body slot 2, marker Station/Bodies/Body2
-[main] CMD h167 where
-[main] REPLY h167 0.00 0.05 8.80 camera 0.00 1.65 8.80
+[main] CMD h55 where
+[main] REPLY h55 0.00 0.05 8.80 camera 0.00 1.65 8.80
 [main] PASS the muster gathers the living at the ring round the post: 2.80 m from the post, Unity feet 0.00 0.05 8.80 camera 0.00 1.65 8.80
-[main] CMD h168 walk 1.00 8.80 3
-[main] REPLY h168 blocked at 0.00 8.80, 1.00 m short (movement locked)
+[main] CMD h56 walk 1.00 8.80 3
+[main] REPLY h56 blocked at 0.00 8.80, 1.00 m short (movement locked)
 [main] PASS players stand still in the ring (movement locked): blocked at 0.00 8.80, 1.00 m short (movement locked)
-[main] CMD h169 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
-[main] REPLY h169 Main Editor sounded the alarm over Bot 2.
-[main] 7s left
+[main] CMD h57 where
+[main] REPLY h57 0.00 0.05 8.80 camera 0.00 1.65 8.80
+[main] CMD h58 probe pk1:hidden-role:0 pos Personal/Panel
+[main] REPLY h58 0.000 1.300 8.250
+[main] PASS in a match the personal panel floats in front of the head: panel 0.00,1.30,8.25, head 0.00,1.65,8.80, 0.65 m
+[main] CMD h59 standstill 5
+[main] REPLY h59 ok still: body moved 0.000 m, player moved 0.000 m in 5 s at 0.00,0.05,8.80, touched none
+[main] PASS a body standing still for 5 s in a match, its panel in front of it, is not pushed: ok still: body moved 0.000 m, player moved 0.000 m in 5 s at 0.00,0.05,8.80, touched none
+[main] CMD h60 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
+[main] REPLY h60 Main Editor sounded the alarm over Bot 2.
+[main] 2s left
 [main] itor: ...
 [main] voted
 [main] voted
-[main] PASS the muster board says why and who: Main Editor sounded the alarm over Bot 2. / Vote: 27s left
-[main] CMD h170 shot muster 0 1.75 8.8 0 2.25 6 70
-[main] REPLY h170 Library/PortKit/shots/hidden-role-single_muster.jpg
+[main] voted
+[main] voted
+[main] PASS the muster board says why and who: Main Editor sounded the alarm over Bot 2. / Vote: 22s left
+[main] CMD h61 shot muster 0 1.75 8.8 0 2.25 6 70
+[main] REPLY h61 Library/PortKit/shots/hidden-role-single_muster.jpg
 [main] INFO shot muster: Library/PortKit/shots/hidden-role-single_muster.jpg
-[main] CMD h171 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Vote5/Label
-[main] REPLY h171 Bot 5
+[main] CMD h62 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Vote5/Label
+[main] REPLY h62 Bot 5
 [main] PASS the muster board's buttons name the living: button 5: 'Bot 5'
-[main] CMD h172 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Board/Vote5
-[main] REPLY h172 -0.980 2.480 6.005
-[main] CMD h173 look -0.980 2.480 6.005
-[main] REPLY h173 ok camera at 0.00,1.65,8.80
-[main] CMD h174 pointer -0.980 2.480 6.005
-[main] REPLY h174 ok screen 585,512 of 1169x1024
-[main] CMD h175 click -0.980 2.480 6.005
-[main] REPLY h175 ok screen 585,512 of 1169x1024
+[main] CMD h63 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Board/Vote5
+[main] REPLY h63 -0.980 2.480 6.005
+[main] CMD h64 look -0.980 2.480 6.005
+[main] REPLY h64 ok camera at 0.00,1.65,8.80
+[main] CMD h65 pointer -0.980 2.480 6.005
+[main] REPLY h65 ok screen 585,512 of 1169x1024
+[main] CMD h66 click -0.980 2.480 6.005
+[main] REPLY h66 ok screen 585,512 of 1169x1024
 [main] INFO click vote for Bot 5: ok screen 585,512 of 1169x1024 at -0.980 2.480 6.005
-[main] PASS the person's ballot is counted (who voted is public, the choice is sealed): referee's record: {"t":1795565713.906,"actor":0}, public voted flags [0,0,0,0,0,0]
-[main] CMD h176 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
-[main] REPLY h176 Muster board
-[main] PASS the vote resolves when all have voted: Muster board
-[main] INFO the vote ended the match (state 3, winner 2)
-[main] CMD h177 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
-[main] REPLY h177 1.150 2.260 17.545
-[main] CMD h178 look 1.150 2.260 17.545
-[main] REPLY h178 ok camera at 0.00,1.65,8.80
-[main] CMD h179 pointer 1.150 2.260 17.545
-[main] REPLY h179 ok screen 585,512 of 1169x1024
-[main] CMD h180 click 1.150 2.260 17.545
-[main] REPLY h180 error: the point is not in view (screen -1202,609, depth 5.57, view 1169x1024)
-[main] INFO click Start: error: the point is not in view (screen -1202,609, depth 5.57, view 1169x1024) at 1.150 2.260 17.545
-[main] INFO Start did not take (try 1): referee true, joined true, state 0
-[main] CMD h181 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
-[main] REPLY h181 1.150 2.260 17.545
-[main] CMD h182 look 1.150 2.260 17.545
-[main] REPLY h182 ok camera at -8.00,1.65,9.00
-[main] CMD h183 pointer 1.150 2.260 17.545
-[main] REPLY h183 ok screen 584,512 of 1169x1024
-[main] CMD h184 click 1.150 2.260 17.545
-[main] REPLY h184 ok screen 584,512 of 1169x1024
-[main] INFO click Start: ok screen 584,512 of 1169x1024 at 1.150 2.260 17.545
-[main] PASS another match starts: state 1, roster Main Editor, Bot 1*, Bot 2*, Bot 3*, Bot 4*, Bot 5*
-[main] CMD h185 walk 14.500 48.500 3.5
-[main] REPLY h185 ok reached 14.41 48.55
-[main] CMD h186 walk 16.500 47.500 3.5
-[main] REPLY h186 ok reached 16.40 47.55
-[main] CMD h187 walk 19.500 46.500 3.5
-[main] REPLY h187 ok reached 19.39 46.54
-[main] CMD h188 walk 21.500 45.500 3.5
-[main] REPLY h188 ok reached 21.40 45.55
-[main] CMD h189 walk 27.500 44.500 3.5
-[main] REPLY h189 ok reached 27.39 44.52
-[main] CMD h190 walk 39.500 34.500 3.5
-[main] REPLY h190 ok reached 39.42 34.57
-[main] CMD h191 walk 40.500 33.500 3.5
-[main] REPLY h191 ok reached 40.44 33.60
-[main] CMD h192 walk 42.500 29.500 3.5
-[main] REPLY h192 ok reached 42.45 29.59
-[main] CMD h193 walk 44.500 26.500 3.5
-[main] REPLY h193 ok reached 44.45 26.59
-[main] CMD h194 walk 44.500 25.500 3.5
-[main] REPLY h194 ok reached 44.49 25.61
-[main] CMD h195 walk 41.500 18.500 3.5
-[main] REPLY h195 ok reached 41.54 18.59
-[main] CMD h196 walk 40.500 17.500 3.5
-[main] REPLY h196 ok reached 40.60 17.55
-[main] CMD h197 walk 25.500 15.500 3.5
-[main] REPLY h197 ok reached 25.61 15.52
-[main] CMD h198 walk 0.111 4.846 3.5
-[main] REPLY h198 ok reached 0.21 4.89
-[main] CMD h199 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Post
-[main] REPLY h199 0.000 1.110 6.000
-[main] CMD h200 look 0.000 1.110 6.000
-[main] REPLY h200 ok camera at 0.21,1.65,4.89
-[main] CMD h201 pointer 0.000 1.110 6.000
-[main] REPLY h201 ok screen 585,512 of 1169x1024
-[main] CMD h202 click 0.000 1.110 6.000
-[main] REPLY h202 ok screen 585,512 of 1169x1024
-[main] INFO click the muster post: ok screen 585,512 of 1169x1024 at 0.000 1.110 6.000
-[main] PASS the muster post calls a muster: state 2, caller slot 0
-[main] CMD h203 where
-[main] REPLY h203 0.00 0.05 8.80 camera 0.00 1.65 8.80
-[main] PASS the muster gathers the living at the ring round the post: 2.80 m from the post, Unity feet 0.00 0.05 8.80 camera 0.00 1.65 8.80
-[main] CMD h204 walk 1.00 8.80 3
-[main] REPLY h204 blocked at 0.00 8.80, 1.00 m short (movement locked)
-[main] PASS players stand still in the ring (movement locked): blocked at 0.00 8.80, 1.00 m short (movement locked)
-[main] CMD h205 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
-[main] REPLY h205 MUSTER called by Main Editor.
-[main] 7s left
-[main] itor: ...
-[main] voted
-[main] voted
-[main] voted
-[main] ...
-[main] PASS the muster board says why and who: MUSTER called by Main Editor. / Vote: 27s left
-[main] CMD h206 shot muster 0 1.75 8.8 0 2.25 6 70
-[main] REPLY h206 Library/PortKit/shots/hidden-role-single_muster.jpg
-[main] INFO shot muster: Library/PortKit/shots/hidden-role-single_muster.jpg
-[main] CMD h207 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Vote4/Label
-[main] REPLY h207 Bot 4
-[main] PASS the muster board's buttons name the living: button 4: 'Bot 4'
-[main] CMD h208 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Board/Vote4
-[main] REPLY h208 -0.360 2.480 6.005
-[main] CMD h209 look -0.360 2.480 6.005
-[main] REPLY h209 ok camera at 0.00,1.65,8.80
-[main] CMD h210 pointer -0.360 2.480 6.005
-[main] REPLY h210 ok screen 585,512 of 1169x1024
-[main] CMD h211 click -0.360 2.480 6.005
-[main] REPLY h211 ok screen 585,512 of 1169x1024
-[main] INFO click vote for Bot 4: ok screen 585,512 of 1169x1024 at -0.360 2.480 6.005
-[main] PASS the person's ballot is counted (who voted is public, the choice is sealed): referee's record: {"t":1795565765.086,"actor":0}, public voted flags [0,0,0,0,0,0]
-[main] CMD h212 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
-[main] REPLY h212 MUSTER called by Main Editor.
-[main] 6s left
-[main] itor: ...
-[main] voted
-[main] voted
-[main] voted
-[main] voted
-[main] PASS the vote resolves when all have voted: MUSTER called by Main Editor. / Vote: 26s left / Main Editor: ... / Bot 1: voted / Bot 2: voted / Bot 3: voted / Bot 4: voted
-[main] CMD h213 where
-[main] REPLY h213 0.21 0.05 4.89 camera 0.21 1.65 4.89
-[main] PASS after the vote the living are sent back where they stood: before 0.21,-1.11, Unity feet 0.21 0.05 4.89 camera 0.21 1.65 4.89
-[main] CMD h214 walk 0.51 4.89 2
-[main] REPLY h214 ok reached 0.39 4.89
-[main] PASS and may move again: ok reached 0.39 4.89
-[main] PASS during a fault the job list gives no directions (upstream hid its pointer): You are a TECHNICIAN / Shift clock: 879s / FAULT: Sonar jam - reset it at its panel / Jobs (5 left): / Strap loose crates (Tap) - Kelp Store 32 m / Reseat the cell clamps (Tap) - Battery Bay 45 m
-[main] CMD h215 stats
-[main] REPLY h215 triangles 7148 vertices 14308 batches 85 drawcalls 85 setpass 19 shadowcasters 4 frame 4.3ms render 1.3ms
-[main] INFO frame stats end: triangles 7148 vertices 14308 batches 85 drawcalls 85 setpass 19 shadowcasters 4 frame 4.3ms render 1.3ms
-[main] CMD h216 shot station -30 2.25 -14 -45 1.05 -12 75
-[main] REPLY h216 Library/PortKit/shots/hidden-role-single_station.jpg
+[main] PASS the person's ballot is counted (who voted is public, the choice is sealed): referee's record: {"t":1795622623.421,"actor":0}, public voted flags [0,0,0,0,0,0]
+[main] CMD h67 probe pk1:hidden-role:0 text Station/Regions/R15/Muster/Board/Text
+[main] REPLY h67 Vote result: Bot 5 is locked out.
+[main] vealed: technician.
+[main] PASS the vote resolves when all have voted: Vote result: Bot 5 is locked out. / Role revealed: technician.
+[main] CMD h68 where
+[main] REPLY h68 45.51 0.05 12.32 camera 45.51 1.65 12.32
+[main] PASS after the vote the living are sent back where they stood: before 45.51,6.32, Unity feet 45.51 0.05 12.32 camera 45.51 1.65 12.32
+[main] CMD h69 walk 45.81 12.32 2
+[main] REPLY h69 ok reached 45.70 12.32
+[main] PASS and may move again: ok reached 45.70 12.32
+[main] INFO no fault ran while the person was alive: the directions check is the Node test's only
+[main] CMD h70 stats
+[main] REPLY h70 triangles 5368 vertices 12422 batches 77 drawcalls 77 setpass 11 shadowcasters 0 frame 4.0ms render 1.2ms
+[main] INFO frame stats end: triangles 5368 vertices 12422 batches 77 drawcalls 77 setpass 11 shadowcasters 0 frame 4.0ms render 1.2ms
+[main] CMD h71 shot station -30 2.25 -14 -45 1.05 -12 75
+[main] REPLY h71 Library/PortKit/shots/hidden-role-single_station.jpg
 [main] INFO shot station: Library/PortKit/shots/hidden-role-single_station.jpg
-[main] INFO page result 51 passed, 0 failed
+[main] INFO page result 32 passed, 0 failed
 [main] DONE
 served: /web/pk-hidden-role.js x1, /web/playtest/hidden-role-playtest.js x1, HEAD /kits/windows/hidden-role x1
 console (main editor): 0 error lines
-RESULT 51 passed, 0 failed
+RESULT 32 passed, 0 failed
 DONE

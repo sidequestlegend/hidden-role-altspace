@@ -24,6 +24,13 @@ import PVS from "./region-pvs.json" with { type: "json" };
 
 /** The lounge is a sealed room this far below the station unless the snippet says where (PORT.md 5.7). */
 const LOUNGE_OFFSET = new Vector3(0, -70, 0);
+/**
+ * Where the kit puts the personal panel (local to the kit root, HiddenRoleKitBuilder.PersonalPanel): in the lounge, out
+ * of the way. It goes back there whenever it is not following the head.
+ */
+export const PANEL_PARK = LOUNGE_OFFSET.add(new Vector3(0, 0.5, -3.5));
+/** Where the kit puts the blackout shell (local to the kit root). */
+export const SHELL_PARK = LOUNGE_OFFSET;
 const WAVE_ALERT_SECONDS = 6;
 const CLOCK_WARNING_SECONDS = 30;
 const GOLD = new Color(1, 0.78, 0.2, 1);
@@ -62,6 +69,16 @@ function compass(from: Vector2, to: Vector2): string {
   const names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
   const angle = (Math.atan2(d.x, d.y) * 180) / Math.PI;
   return names[(Math.round(angle / 45) + 8) % 8]!;
+}
+
+/**
+ * Whether the personal panel (and the blackout shell) follow this person's head: only for a person on the roster of a
+ * match that is on (playing, a muster, or its result), never for a lobby player, an observer or anyone while no match
+ * runs. Its buttons are in front of the body, so it never follows anyone who has no use for it (world 9d7311: it
+ * followed every visitor and shoved them).
+ */
+export function PanelFollows(m: PublicMatch, slot: number): boolean {
+  return slot >= 0 && m.st !== MatchState.Lobby && m.sl[slot] !== undefined && m.sl[slot]!.b !== 1;
 }
 
 function seconds(value: number): string {
@@ -121,6 +138,8 @@ export class RuntimeHud extends Behaviour {
   private lastSecret: Secret | null = null;
   private waveAlertUntil = 0;
   private lastHeadSent: Vector3 | null = null;
+  /** True once the panel and the shell were put back where the kit has them (not following the head). */
+  private parked = false;
   private lastCutIn = 0;
   /** Teleports this client made, in map units (tests read them). */
   readonly moves: Array<{ why: string; at: Vector2 }> = [];
@@ -498,7 +517,7 @@ export class RuntimeHud extends Behaviour {
       void this.SendBeat(m, slot);
       this.Refresh();
     }
-    this.FollowHead();
+    this.FollowHead(m, slot);
   }
 
   /** The sealed beat, on the fixed schedule, from every rostered person for the whole match. */
@@ -600,8 +619,16 @@ export class RuntimeHud extends Behaviour {
     this.Lock(false);
   }
 
-  /** The personal panel floats below the head, and the blackout shell sits round it. Sent only when it moved. */
-  private FollowHead(): void {
+  /**
+   * The personal panel floats below the head, and the blackout shell sits round it, for a person in a match only
+   * (PanelFollows); otherwise both go back where the kit put them. Sent only when it moved.
+   */
+  private FollowHead(m: PublicMatch, slot: number): void {
+    if (!PanelFollows(m, slot)) {
+      this.Park();
+      return;
+    }
+    this.parked = false;
     const head = this.Input.Poses?.head ?? null;
     const w = head ? head.position : this.Input.Position;
     if (!w) return;
@@ -614,6 +641,23 @@ export class RuntimeHud extends Behaviour {
       this.personalPanel.transform.SetPositionAndRotation(w.add(flat.scale(0.55)).add(new Vector3(0, -0.35, 0)), Quaternion.Euler(25, yaw, 0));
     }
     if (this.shell) this.shell.transform.position = w.clone();
+  }
+
+  /** The panel and the shell back where the kit put them, in the lounge (once, each time they stop following). */
+  private Park(): void {
+    if (this.parked) return;
+    this.parked = true;
+    this.lastHeadSent = null;
+    if (this.personalPanel) {
+      this.personalPanel.transform.localPosition = PANEL_PARK;
+      this.personalPanel.transform.localRotation = Quaternion.identity;
+    }
+    if (this.shell) this.shell.transform.localPosition = SHELL_PARK;
+  }
+
+  /** True while the personal panel follows the local head (tests). */
+  get PanelFollowing(): boolean {
+    return !this.parked;
   }
 
   private OnSecret(secret: Secret): void {

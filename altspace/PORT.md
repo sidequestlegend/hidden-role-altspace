@@ -29,7 +29,7 @@ Contents: 1 Status, 2 Names and terms, 3 Decisions and deliberate differences, 4
 | Build | `npm run build`: `Assets/WebRoot/pk-hidden-role.js`, 500,361 bytes on portkit c971100 (the game's and portkit's MIT notices in its banner) |
 | `bindings.json` | Written by the kit builder (124 objects, 62 refs, 51 behaviours, 24 events) |
 | Unity kit (section 11) | Built: `Assets/Kit/hidden-role.prefab` by `Assets/Kit/Editor/HiddenRoleKitBuilder.cs`; bundles Android 1,116 KiB, Windows 1,155 KiB (portkit c971100), both PASS the app's kit check; licence texts in the bundles and in `dist/licenses/hidden-role/`; footprint the station's (123.5 x 3.45 x 112.85 m) |
-| Rungs (`TESTS.md`) | Again after the fix pass (portkit 812f285, 2026-11-25): 0 and 1 pass; 2 passes (and the collider check against the rules' walkable test); 3 passes twice in a row (one person and five bots, 28 of 28 and 35 of 35, with new checks for the referee's positions, the jobs total and the wording); 4 passes twice in a row (two players and three bots, 35 of 35 each, with the bunkroom's Leave refused and the boarding pad sent back); `dist/` exported. Again on portkit c971100: 0 to 2 pass, 3 twice in a row (58 of 58, 51 of 51), 4 twice in a row (35 of 35 each) |
+| Rungs (`TESTS.md`) | Again after the fix pass (portkit 812f285, 2026-11-25): 0 and 1 pass; 2 passes (and the collider check against the rules' walkable test); 3 passes twice in a row (one person and five bots, 28 of 28 and 35 of 35, with new checks for the referee's positions, the jobs total and the wording); 4 passes twice in a row (two players and three bots, 35 of 35 each, with the bunkroom's Leave refused and the boarding pad sent back); `dist/` exported. Again on portkit c971100: 0 to 2 pass, 3 twice in a row (58 of 58, 51 of 51), 4 twice in a row (35 of 35 each). Again on portkit 476075d (the panel follows only a person in a match; click colliders are triggers; push checks in rung 3): 52 Node tests; 2 PASS; 3 twice in a row (54 of 54, 32 of 32); 4 twice in a row (35 of 35 each) |
 | Checklist (section 4, 82 items) | **60 Done, 21 Changed (deliberately), 0 Partial, 1 Left out** |
 
 ## 2. Names and terms
@@ -519,10 +519,17 @@ PASS everything the rules connect is reachable: 70654 of 70654 connected clear p
 | Hatches (9) | Floor plates | V or the panel's Hatch button (saboteurs) |
 | Body markers (10) | Where someone was downed | Amber disc with a dark cross; a click raises the alarm (or R) |
 | Bot markers (9) | Moved by the page | A slim slate column with a lamp head and a hover ring, named "Bot n" (no likeness to any game's characters); a click eliminates (saboteurs) |
-| Personal panel | Floats 0.55 m in front of the head, tilted | Role, clock, jobs nearest first with compass and distance, hints; jobs-done bar, work bar (with the timing band); Use, Eliminate, Alarm, Fault, Hatch |
-| Blackout shell | Round the head | Black sphere seen from inside, radius 4.8 m (D14) |
+| Personal panel | Floats 0.55 m in front of the head, tilted, **only for a person on the roster of a match that is on** (playing, a muster, the result: `PanelFollows`); everyone else's stays where the kit put it, in the bunkroom (`PANEL_PARK`) | Role, clock, jobs nearest first with compass and distance, hints; jobs-done bar, work bar (with the timing band); Use, Eliminate, Alarm, Fault, Hatch |
+| Blackout shell | Round the head, under the same rule | Black sphere seen from inside, radius 4.8 m (D14) |
 | Bunkroom board | Bunkroom | The match as an observer sees it; Stop match; Leave (lobby only) |
 | Credits | Hub board button | Licences and credits, for the viewer only |
+
+Every click collider in the kit (the buttons, the consoles, fault panels, post, body and bot markers, the credits panel)
+is a **trigger** (2026-11-25, world 9d7311: the personal panel followed every visitor's head with solid buttons, and a
+person there was shoved about). The SDK's pointer finds triggers on the UI layer (its click rays are
+`QueryTriggerInteraction.Collide` on layers 5 and 22; the SDK's own seat prefab is a trigger on the UI layer), and a
+trigger never pushes a body. Rung 3 checks it: a stand-in body (`standstill 5`) is not moved with no match, nor in a
+match with the panel in front of it.
 
 Text is TextMesh Pro with LiberationSans SDF (SIL OFL 1.1, from TextMesh Pro's essentials). The two tones (new job,
 shift over) are sine waves written by `KitArt.Tones`. Every texture is painted in code (floor plates, wall panels

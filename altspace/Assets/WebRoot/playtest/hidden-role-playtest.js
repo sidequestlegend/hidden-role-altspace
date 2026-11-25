@@ -295,6 +295,17 @@
     await sleep(2000);
     await stats(`at the spawn, before walking (regions drawn ${dbg().regionsOn()} of 30)`);
     await shot("commons", world(-6, -9, 1.7), world(0, 6, 1.4), 75);
+    // ---- the push check with no match (world 9d7311): the personal panel stays where the kit put it (the bunkroom),
+    //      and a body standing still is not moved ----
+    {
+      const hw = (await where()).text.split(" ").map(Number).filter(Number.isFinite);
+      const head = hw.length >= 6 ? hw.slice(3, 6) : [hw[0], hw[1] + 1.6, hw[2]];
+      const at = (await probe("pos", path("personalPanel"))).split(/[ ,]+/).map(Number).filter(Number.isFinite);
+      const far = at.length === 3 ? Math.hypot(at[0] - head[0], at[1] - head[1], at[2] - head[2]) : -1;
+      check(far > 20, "with no match the personal panel stays where the kit put it (the bunkroom), not at the head", `panel ${fmt(at)}, head ${fmt(head)}, ${far.toFixed(1)} m`);
+      const still = await cmd("standstill 5", 20000);
+      check(/^ok still/.test(still), "a body standing still for 5 s with no match is not pushed", still);
+    }
     if (!(await joinLobby())) return;
     const referee = await until(() => dbg().isReferee(), 20000, 250);
     check(!!referee, "the one lobby player is elected referee (declared candidates)", "referee " + JSON.stringify(dbg().referee()));
@@ -467,6 +478,17 @@
     check(!!ring && Math.abs(r - 2.8) < 0.4, "the muster gathers the living at the ring round the post", `${r.toFixed(2)} m from the post, Unity feet ${w.text}`);
     const tryWalk = await cmd("walk " + (w.feet[0] + 1).toFixed(2) + " " + w.feet[2].toFixed(2) + " 3", 10000);
     check(tryWalk.indexOf("movement locked") >= 0, "players stand still in the ring (movement locked)", tryWalk);
+    // ---- the push check in a match (world 9d7311), in the ring where everyone stands still anyway: the personal panel
+    //      floats in front of the head, its buttons are triggers, and a body standing still for 5 s is not moved ----
+    {
+      const hw = (await where()).text.split(" ").map(Number).filter(Number.isFinite);
+      const head = hw.length >= 6 ? hw.slice(3, 6) : [hw[0], hw[1] + 1.6, hw[2]];
+      const at = (await probe("pos", path("personalPanel"))).split(/[ ,]+/).map(Number).filter(Number.isFinite);
+      const d = at.length === 3 ? Math.hypot(at[0] - head[0], at[1] - head[1], at[2] - head[2]) : -1;
+      check(d > 0.4 && d < 0.9, "in a match the personal panel floats in front of the head", `panel ${fmt(at)}, head ${fmt(head)}, ${d.toFixed(2)} m`);
+      const still = await cmd("standstill 5", 20000);
+      check(/^ok still/.test(still), "a body standing still for 5 s in a match, its panel in front of it, is not pushed", still);
+    }
     const board = await probe("text", path("musterText"));
     check(bodySlot >= 0 ? board.indexOf(" sounded the alarm over ") > 0 : board.indexOf("MUSTER") === 0, "the muster board says why and who", board.split("\n").slice(0, 2).join(" / "));
     await shot("muster", [w.feet[0], w.feet[1] + 1.7, w.feet[2]], [post[0], post[1] + 2.2, post[2]], 70);

@@ -38,8 +38,16 @@ namespace PortKit
         /// </summary>
         public const string FieldVariable = "PkField";
 
-        /// <summary>Graph variables of the pending launch (rbLaunch): one per kit.</summary>
-        const string LaunchTarget = "PkLaunchTarget", LaunchVelocity = "PkLaunchVelocity", LaunchSteps = "PkLaunchSteps";
+        /// <summary>
+        /// The pending launches (rbLaunch), one per target: the graph variable PkLaunches lists the objects with one pending,
+        /// and each object holds its own in the Object variables PkLaunchVelocity and PkLaunchSteps (the kit builder declares
+        /// them on every object with a Rigidbody; a spawned copy carries them). It was one pending launch per kit in graph
+        /// variables, so two launches in one physics step lost the first (found by beer pong).
+        /// </summary>
+        public const string Launches = "PkLaunches", LaunchVelocity = "PkLaunchVelocity", LaunchSteps = "PkLaunchSteps";
+
+        /// <summary>The op (and the graph event that answers it) for where the app places a session's head: Networking.HeadOf.</summary>
+        public const string HeadOp = "pkHead";
 
         /// <summary>The event kinds a graph has to relay, because the page has no event of its own for them.</summary>
         public static readonly string[] RelayedKinds = { "uiButton", "uiSlider", "uiToggle", "heldTrigger", "heldPrimary", "heldSecondary", "field" };
@@ -100,7 +108,7 @@ namespace PortKit
 
             public void Add(string name, Action body)
             {
-                if (name == "clock" || list.Any(o => o.name == name)) throw new Exception($"relay op '{name}' is defined twice");
+                if (name == "clock" || name == HeadOp || list.Any(o => o.name == name)) throw new Exception($"relay op '{name}' is defined twice");
                 list.Add((name, body));
             }
 
@@ -198,9 +206,11 @@ namespace PortKit
             ops.Add("rbLaunch", () => ops.With(typeof(Rigidbody), rb =>
             {
                 g.Set(typeof(Rigidbody), "isKinematic", rb, false);
-                g.SetGraphVar(LaunchVelocity, g.V3(ops.Number(0), ops.Number(1), ops.Number(2)), typeof(Vector3));
-                g.SetGraphVar(LaunchTarget, ops.Target, typeof(GameObject));
-                g.SetGraphVar(LaunchSteps, 2f, typeof(float));
+                // listed once: a second launch of the same object before the first has landed replaces it
+                g.IfNotNull(g.GraphVar(Launches, typeof(System.Collections.IList)), () => { }, () => g.SetGraphVar(Launches, g.NewList(), typeof(System.Collections.IList)));
+                g.If(g.Less(g.ObjVarOf(ops.Target, LaunchSteps, typeof(float)), 0.5f), () => g.ListAdd(g.GraphVar(Launches, typeof(System.Collections.IList)), ops.Target));
+                g.SetObjVar(LaunchVelocity, g.V3(ops.Number(0), ops.Number(1), ops.Number(2)), ops.Target, typeof(Vector3));
+                g.SetObjVar(LaunchSteps, 2f, ops.Target, typeof(float));
             }));
             // spawn | <template> | <name>: a copy under the template's parent, named, switched on; "@<parent path>/<name>" reaches it
             ops.Add("spawn", () =>
@@ -220,7 +230,7 @@ namespace PortKit
             Standard(ops);
             Added(ops);
             extra?.Invoke(ops);
-            return new[] { "clock" }.Concat(ops.Names).ToList();
+            return new[] { "clock", HeadOp }.Concat(ops.Names).ToList();
         }
 
         public static GraphWriter Build(IReadOnlyList<Event> events, Action<Ops> extra = null)
@@ -235,29 +245,29 @@ namespace PortKit
             g.Declare(At, null);
             g.Declare(Next, null);
             g.Declare(TargetVariable, null);
-            g.Declare(LaunchTarget, null);
-            g.Declare(LaunchVelocity, Vector3.zero);
-            g.Declare(LaunchSteps, 0f);
+            g.Declare(Launches, null);
 
-            // the pending launch: its velocity goes on in the second physics step after the op (see rbLaunch)
+            // the pending launches: each one's velocity goes on in the second physics step after its op (see rbLaunch);
+            // the list is made again with those still pending
             g.On(new FixedUpdate(), _ =>
             {
-                var steps = g.Keep(g.F(LaunchSteps));
-                g.If(g.Greater(steps, 0f), () =>
+                var pending = g.Keep(g.GraphVar(Launches, typeof(System.Collections.IList)));
+                g.IfNotNull(pending, () => g.If(g.Greater(g.Count(pending), 0f), () =>
                 {
-                    var left = g.Keep(steps - 1f);
-                    g.SetGraphVar(LaunchSteps, left, typeof(float));
-                    g.If(g.Less(left, 0.5f), () =>
+                    var keep = g.Keep(g.NewList());
+                    g.ForEach(pending, typeof(GameObject), item => g.IfNotNull(item, () =>
                     {
-                        var target = g.Keep(g.GraphVar(LaunchTarget, typeof(GameObject)));
-                        g.IfNotNull(target, () =>
+                        var left = g.Keep(g.ObjVarOf(item, LaunchSteps, typeof(float)) - 1f);
+                        g.SetObjVar(LaunchSteps, left, item, typeof(float));
+                        g.If(g.Less(left, 0.5f), () =>
                         {
-                            var body = g.Keep(g.ComponentOf(target, typeof(Rigidbody)));
-                            g.IfNotNull(body, () => g.Set(typeof(Rigidbody), "linearVelocity", body, g.GraphVar(LaunchVelocity, typeof(Vector3))));
-                        });
-                        g.SetGraphVar(LaunchTarget, g.Null(typeof(GameObject)), typeof(GameObject));
-                    });
-                });
+                            var body = g.Keep(g.ComponentOf(item, typeof(Rigidbody)));
+                            g.IfNotNull(body, () => g.Set(typeof(Rigidbody), "linearVelocity", body, g.ObjVarOf(item, LaunchVelocity, typeof(Vector3))));
+                            g.SetObjVar(LaunchSteps, 0f, item, typeof(float));
+                        }, () => g.ListAdd(keep, item));
+                    }));
+                    g.SetGraphVar(Launches, keep, typeof(System.Collections.IList));
+                }));
             });
 
             g.On(g.Platform("OnJsReturnValue", ("Return ID", Tag)), received =>
@@ -284,6 +294,13 @@ namespace PortKit
                             var length = g.Keep(g.Length(text));
                             var seconds = g.Join(g.Before(text, g.RoundToInt(length - 7f)), ".", g.Substring(text, g.RoundToInt(length - 6f)));
                             g.InjectScript(g.Join("window.__pk1&&window.__pk1.clock(\"", g.Instance(), "\",\"", ops.Arg(0), "\",\"", seconds, "\")"));
+                        }, () => g.If(g.Same(op, HeadOp), () =>
+                        {
+                            // pkHead | 0 | <request id> | <session id>: where the app places that session's head (the SDK's Get User State,
+                            // which reads the user's Head transform; 0 0 0 for a user it does not know or has no body for yet), answered
+                            // with the graph-to-page event pkHead (request id, x, y, z). No target, as the clock (from treasure hunt's op).
+                            var head = g.Keep(g.PlatformValue("GetUserState", "Position", typeof(Vector3), ("id, uid, or name", ops.Text(1))));
+                            g.PageEvent(HeadOp, ops.Arg(0), g.InvariantText(g.X(head)), g.InvariantText(g.Y(head)), g.InvariantText(g.Z(head)));
                         }, () =>
                         {
                             // the target: an index into Refs, or "@<path>" under the kit's root (walked child by child:
@@ -307,7 +324,7 @@ namespace PortKit
                             }, () => g.SetGraphVar(TargetVariable, g.KitRef(g.ParseInt(field)), typeof(GameObject)));
                             ops.Target = g.GraphVar(TargetVariable, typeof(GameObject));
                             g.IfNotNull(ops.Target, () => g.Switch(op, ops.Cases));
-                        });
+                        }));
                     });
                 });
             });

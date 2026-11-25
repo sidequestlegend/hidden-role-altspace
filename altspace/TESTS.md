@@ -1,5 +1,37 @@
 # hidden-role: test evidence
 
+## Re-sync, 2026-11-25 (portkit c971100)
+
+Everything in this section ran on 2026-11-25 on Windows, Unity 6000.3.21f1, Creator SDK 4.0.29, in the Unity editor
+(Play-mode page port 44000), after re-syncing `ts/portkit/` and `Packages/com.altspacegames.portkit/` to portkit
+`c971100` (`sync.sh`). The game had no workaround of its own to drop for this kit; the one change is
+`FootprintRoot => "Station"` in `HiddenRoleKitBuilder.cs`. Nothing ran in the Altspace app or on a Quest (rung 5: not
+run).
+
+- **Rung 0/1:** `npm test`: typecheck and lint clean; **48 tests, 48 pass** (before and after the kit was rebuilt). No
+  test changed.
+- **Rung 2:** Build Prefabs: 510 objects, 124 bound (71 clickable, 0 grabbable, so no click events added), relay
+  graph 52 distinct members (was 49: `pkHead` and the per-target launches), all on the allow list. `PortKit/Kit/Check`
+  PASS (graphs, 124 bindings, hash `126bf586`, both bundles); `HiddenRole/Check Walkable` PASS, the same three lines
+  as before (70,654 of 70,654 clear points free; 0 reachable points blocked; all connected reached). Bundles Android
+  **1,116 KiB** (1,142,374 bytes; was 1,112 KiB, 1,138,777), Windows **1,155 KiB** (1,183,015 bytes; was 1,154 KiB,
+  1,182,177): graph blobs 308 to 340 KiB. Script `pk-hidden-role.js` 500,361 bytes (was 487,538).
+- **Rung 3** (`playtest/single.json`), twice in a row (`playtest.sh --keep-play`): **58 passed, 0 failed** and
+  **51 passed, 0 failed**, 0 console errors each (`playtest/evidence_single.txt` and the pictures are run 2). Run 1
+  played four matches (the person was downed twice and sent to the bunkroom, 70 m down); both runs did a job by
+  clicks (jobs 7 and 10, timing), the alarm and muster, the vote, and the jobs total kept until a death is seen.
+- **Rung 4** (`playtest/multi.json`), twice in a row: **35 passed, 0 failed** each, 0 console errors
+  (`playtest/evidence_multi.txt` is run 2). Digests equal after the first match (`ca162f79`) and after B's reload
+  (`c823d302`); B's reloaded page sent to the bunkroom and Leave refused while the match runs.
+- **Artifacts:** Take Photos (`'Station' only, 286 renderers, size 123.50 x 3.45 x 112.85`) and Export Artifacts ->
+  `dist/` (not checked in): `android/hidden-role` 1,142,374 bytes, `windows/hidden-role` 1,183,015, `pk-hidden-role.js`
+  500,361, `hidden-role.jpg`, `hidden-role.snippet.html`, `licenses/hidden-role/` (new: `MIT-hidden-role.txt`,
+  `MIT-portkit.txt`, `LiberationSans - OFL.txt`), `manifest.json` with **footprint 123.5 x 3.45 x 112.85 m
+  ('Station')** (was 123.5 x 73.4 x 112.85 m: the bunkroom 70 m down no longer counts; it lies under the station's
+  plan, so the station's area is still the whole footprint on the ground).
+
+---
+
 ## Fix pass, 2026-11-25 (portkit 812f285, the review's findings)
 
 Everything in this section ran on 2026-11-25 on Windows, Unity 6000.3.21f1, Creator SDK 4.0.29, in the Unity editor

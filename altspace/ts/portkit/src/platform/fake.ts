@@ -24,6 +24,13 @@ import { BsPlatform, type BsOptions, type PageEnv } from "./bs.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/**
+ * A game's own relay op in the fake graph: the record (`target` as sent, `args` still percent-coded) and, so that the
+ * handler can answer the right instance with `client.graphEvent(slug, inst, ...)`, the instance it was sent for (`key`
+ * is `<slug>:<inst>`; found by treasure hunt, whose handler had to guess the instance).
+ */
+export type RelayOpHandler = (record: { op: string; target: string; args: string[]; key: string; slug: string; inst: string }, client: FakeClient) => void;
+
 export interface FakeRoomOptions {
   seed?: number;
   /** One-way network latency in ms, drawn per message between these bounds. */
@@ -142,7 +149,9 @@ export class FakeRoom {
   readonly stats: RoomStats = { stateBatches: 0, socketsClosed: 0, largestBatch: 0, rateLimited: 0, oneShots: 0, oneShotsDropped: 0, userWrites: 0, objectRequests: 0, refusedWrites: 0 };
   readonly clients: FakeClient[] = [];
   /** A game's own relay ops the fake graph answers to (`defineRelayOp`), with what each does here. */
-  readonly relayOps = new Map<string, ((record: { op: string; target: string; args: string[] }, client: FakeClient) => void) | null>();
+  readonly relayOps = new Map<string, RelayOpHandler | null>();
+  /** Whether kits answer the standard op pkHead (Networking.HeadOf); false stands for kits built before it. */
+  headAnswers = true;
   private readonly timers: Timer[] = [];
   private seq = 0;
   private readonly sessions = new Map<string, Session>();
@@ -179,6 +188,33 @@ export class FakeRoom {
   }
 
   // ---- virtual time -------------------------------------------------------------------------------------------
+
+  /**
+   * An autoSync attachment (BS.AttachedObject) as the app networks it: user state `attachment_<BS Object Id>` (refused,
+   * with the batch it rides in, unless the key is 1-64 of `A-Z a-z 0-9 _ - : @`), and each other client re-parents ITS
+   * OWN object of that id (none: the attachment is not seen there). `at` null: detached. What each client reproduced is
+   * `FakeClient.remoteAttached` (by the object's path there, with the wearer's uid and attachment point).
+   */
+  shareAttachment(from: FakeClient, id: string, at: { uid: string; point: number } | null): void {
+    const key = "attachment_" + id;
+    if (!id || !SEGMENT.test(key)) {
+      from.notes.push(`attachment key refused: ${key}`);
+      return;
+    }
+    for (const other of this.clients) {
+      if (other === from) continue;
+      this.schedule(this.latency() * 2, () => {
+        const objects = Object.values(other.app.scene.objects as Record<string, FakeObject>);
+        const object = objects.find((o) => o.networkId === id && !o.destroyed);
+        if (!object) {
+          if (at) other.notes.push(`attachment of an object this client does not have: ${id}`);
+          return;
+        }
+        if (at) other.remoteAttached.set(object.path, at);
+        else other.remoteAttached.delete(object.path);
+      }, other);
+    }
+  }
 
   schedule(delayMs: number, fn: () => void, owner: object | null = null): number {
     const timer: Timer = { at: this.now + Math.max(0, delayMs), seq: ++this.seq, fn, owner, dead: false };
@@ -248,7 +284,7 @@ export class FakeRoom {
    * KitBuilder.RelayOps): it is recorded in `graph(...).events` and `handler`, if any, runs, instead of the
    * "unknown op" note.
    */
-  defineRelayOp(name: string, handler: ((record: { op: string; target: string; args: string[] }, client: FakeClient) => void) | null = null): void {
+  defineRelayOp(name: string, handler: RelayOpHandler | null = null): void {
     this.relayOps.set(name, handler);
   }
 
@@ -941,6 +977,7 @@ class FakeApp {
         return app.bridge(() => {
           const object = this.gameObject!;
           client.attached.set(object.path, this.config.autoSync ? { uid, point: this.config.attachmentPoint, autoSync: true, networkId: object.networkId } : { uid, point: this.config.attachmentPoint });
+          if (this.config.autoSync) room.shareAttachment(client, object.networkId, { uid, point: this.config.attachmentPoint });
           // Attached to the head (point 0): the app moves the object there, if this client has a head position.
           if (this.config.attachmentPoint === 0 && client.head && uid === client.uid) {
             const offset = this.config.attachmentPosition ?? { x: 0, y: 0, z: 0 };
@@ -950,7 +987,11 @@ class FakeApp {
         });
       }
       Detach(): Promise<void> {
-        return app.bridge(() => void client.attached.delete(this.gameObject!.path));
+        return app.bridge(() => {
+          const was = client.attached.get(this.gameObject!.path);
+          client.attached.delete(this.gameObject!.path);
+          if (was?.autoSync) room.shareAttachment(client, this.gameObject!.networkId, null);
+        });
       }
     }
     class Seat extends Component {
@@ -1466,6 +1507,18 @@ class FakeApp {
           this.room.schedule(16, () => this.client.env.win.__pk1?.clock(parsed.key, requestId, seconds), this.client);
           break;
         }
+        case "pkHead": {
+          // The SDK's Get User State, as the app answers it: where it places that session's head (the room's
+          // `client.head`, set by pose()), 0 0 0 for a session it does not know or whose head it has not placed.
+          // `room.headAnswers = false` stands for a kit built before the op (no answer at all).
+          if (!this.room.headAnswers) break;
+          const [requestId = "", sid = ""] = args;
+          const head = this.room.clients.find((c) => c.sid === sid && !c.hasLeft)?.head ?? null;
+          const at = head ?? new Vector3(0, 0, 0);
+          graph.events.push({ op: record.op, target, args });
+          this.room.schedule(16, () => this.client.env.win.__pk1?.event(parsed.key, "pkHead", `${requestId}|${at.x}|${at.y}|${at.z}`), this.client);
+          break;
+        }
         default: {
           // A game's own op (KitBuilder.RelayOps), when the test told the room about it.
           const handler = this.room.relayOps.get(record.op);
@@ -1474,7 +1527,8 @@ class FakeApp {
             break;
           }
           graph.events.push({ op: record.op, target, args });
-          if (handler) handler({ op: record.op, target, args }, this.client);
+          const [slug = "", inst = ""] = [parsed.key.slice(0, parsed.key.indexOf(":")), parsed.key.slice(parsed.key.indexOf(":") + 1)];
+          if (handler) handler({ op: record.op, target, args, key: parsed.key, slug, inst }, this.client);
         }
       }
     }
@@ -1516,6 +1570,8 @@ export class FakeClient {
   head: Vector3 | null = null;
   /** Kit objects attached to this player (BS.AttachedObject), by path: who and where (0 head, 1 left hand, 2 right hand). */
   readonly attached = new Map<string, { uid: string; point: number; autoSync?: boolean; networkId?: string }>();
+  /** Other players' autoSync attachments this client reproduced on its own copies (room.shareAttachment), by path. */
+  readonly remoteAttached = new Map<string, { uid: string; point: number }>();
   readonly runtimes = new Map<string, GameRuntime>();
   readonly platforms: BsPlatform[] = [];
   private readonly elements: FakeSnippet[] = [];
@@ -1523,6 +1579,10 @@ export class FakeClient {
   private readonly observers: Array<() => void> = [];
   private readonly adapterOptions: Partial<BsOptions>;
   private gone = false;
+  /** True once the player has left (leave()). */
+  get hasLeft(): boolean {
+    return this.gone;
+  }
   /** Play mode on your own: no room, so no other players, no one-shots and no user state. */
   readonly solo: boolean;
 

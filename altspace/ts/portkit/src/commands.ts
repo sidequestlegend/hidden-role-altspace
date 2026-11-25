@@ -11,6 +11,12 @@
 //     public space state, where any client could acknowledge another player's requests so that they never run.
 //   - The sender publishes its next request once the acknowledgement is mirrored.
 //
+// A request carries a write mark: the sender's ownership claims and writes the room had not echoed when it was published
+// ([slot id, generation, sequence], made after the sending turn's own writes). Space state and user state travel by
+// different roads (the app paces them apart), so a request can reach the referee before the claim it was sent after; the
+// referee holds the request (and the sender's later ones) until it has seen them, or for eventHoldMs at most. Without
+// the mark the referee's handler ran on the old value and its write lost to the claim arriving after it (beer pong).
+//
 // Only the referee ever runs a request, each one in order; a new referee carries on from the last numbers it read.
 // (If a referee runs a request and leaves before its acknowledgement reaches the room, the next referee runs it
 // again: at-least-once in that one corner.)
@@ -32,12 +38,22 @@ export interface CommandRoutes {
   invoke(behaviour: Behaviour, name: string, args: unknown[], fromSid: string): void;
   acknowledged(behaviour: Behaviour, number: number): void;
   refused(behaviour: Behaviour, code: string, name: string): void;
+  /** Writes every slot the local player changed in this turn (the end of the action the request was sent in). */
+  flush?(): void;
+  /** The local player's claims and writes the room has not echoed yet: [slot id, generation, sequence]. */
+  marks?(): Array<[string, number, number]>;
+  /** Has this client seen that claim and that write? */
+  seen?(id: string, g: number, n: number): boolean;
 }
+
+type Mark = Array<[string, number, number]>;
 
 interface Pending {
   n: number;
   behaviour: Behaviour;
-  record: [number, string, string, string, unknown[]];
+  /** [n, behaviour id, player sid, method, args, write mark?]: the mark is added once the sending turn is over. */
+  record: [number, string, string, string, unknown[]] | [number, string, string, string, unknown[], Mark];
+  sealed: boolean;
 }
 
 /** A request must fit in the announcement leaf with room to spare. */
@@ -56,6 +72,10 @@ export class Commands {
   private readonly acks: RefereeTable<number>;
   private reviewing = false;
   private reviewAgain = false;
+  private sealing = false;
+  /** Referee: since when a sender's first due request (`<sid>` newline `<n>`) has waited for its write mark. */
+  private readonly heldSince = new Map<string, number>();
+  private holding = false;
   /** False until behaviours have started: the referee runs nothing before then. */
   started = false;
   run = 0;
@@ -72,6 +92,10 @@ export class Commands {
     this.presence.onExtra(() => this.review());
     this.presence.on(() => this.review());
     this.referee.on(() => this.review());
+    // A held request may run once the state it waits for has arrived (after Sync has taken it in: a microtask later).
+    this.core.onState(() => {
+      if (this.holding) Promise.resolve().then(() => this.review());
+    });
   }
 
   send(behaviour: Behaviour, name: string, args: unknown[]): number {
@@ -88,9 +112,29 @@ export class Commands {
       this.routes.refused(behaviour, "value_too_large", name);
       return 0;
     }
-    this.queue.push({ n, behaviour, record });
-    this.review();
+    this.queue.push({ n, behaviour, record, sealed: false });
+    if (!this.sealing) {
+      this.sealing = true;
+      Promise.resolve().then(() => this.seal());
+    }
     return n;
+  }
+
+  /** After the turn that sent them: the turn's writes go out first, then the requests, marked with what they follow. */
+  private seal(): void {
+    this.sealing = false;
+    if (this.core.disposed) return;
+    this.core.guard("command write mark", () => this.routes.flush?.());
+    const marks = this.routes.marks?.() ?? [];
+    for (const pending of this.queue) {
+      if (pending.sealed) continue;
+      pending.sealed = true;
+      if (marks.length) {
+        const [n, id, sid, name, args] = pending.record;
+        pending.record = [n, id, sid, name, args, marks];
+      }
+    }
+    this.review();
   }
 
   /**
@@ -129,6 +173,7 @@ export class Commands {
       const batch: Pending["record"][] = [];
       let bytes = 2;
       for (const pending of this.queue) {
+        if (!pending.sealed) break;
         const size = utf8Length(asciiJson(pending.record)) + 1;
         if (batch.length >= MAX_BATCH || (batch.length && bytes + size > MAX_BATCH_BYTES)) break;
         batch.push(pending.record);
@@ -136,7 +181,7 @@ export class Commands {
       }
       const first = Array.isArray(published) && Array.isArray(published[0]) ? published[0][0] : null;
       const last = Array.isArray(published) && Array.isArray(published[published.length - 1]) ? published[published.length - 1][0] : null;
-      if (first !== batch[0]![0] || last !== batch[batch.length - 1]![0]) this.presence.setExtra("q", batch);
+      if (batch.length && (first !== batch[0]![0] || last !== batch[batch.length - 1]![0])) this.presence.setExtra("q", batch);
     } else if (published !== undefined) this.presence.setExtra("q", undefined);
     if (this.referee.isMe()) this.officiate();
   }
@@ -144,6 +189,8 @@ export class Commands {
   private officiate(): void {
     const table = this.acks.working();
     let changed = false;
+    const now = this.core.platform.clock.now();
+    let holding = false;
     for (const sid of Object.keys(table)) {
       if (!this.presence.has(sid)) {
         delete table[sid];
@@ -159,6 +206,20 @@ export class Commands {
         const acked = table[who.sid] ?? 0;
         if (q[0] <= acked) continue;
         if (acked > 0 && q[0] !== acked + 1) break;
+        // The write mark: the sender's claims and writes this request was sent after. Wait for them (in order: the
+        // sender's later requests wait too), for eventHoldMs at most; then run anyway, as a late event does.
+        const key = who.sid + "\n" + q[0];
+        if (who.sid !== this.core.me.sid && !this.marked(q[5])) {
+          const since = this.heldSince.get(key) ?? now;
+          this.heldSince.set(key, since);
+          if (now - since < this.core.options.eventHoldMs) {
+            holding = true;
+            if (since === now) this.core.scheduler.after(this.core.options.eventHoldMs + 1, () => this.review());
+            break;
+          }
+          this.core.log("info", `a command from session ${who.sid} ran without the state it was sent after (it had not arrived in ${this.core.options.eventHoldMs} ms)`);
+        }
+        this.heldSince.delete(key);
         // The acknowledgement is written before the command runs: whatever the handler does (it may publish a record
         // of its own, which reviews again), this request is already done.
         table[who.sid] = q[0];
@@ -171,6 +232,18 @@ export class Commands {
       }
     }
     if (changed) this.acks.write(table);
+    this.holding = holding;
+    if (!holding) this.heldSince.clear();
+  }
+
+  /** Has the referee seen every claim and write in a request's mark? (No mark, or a malformed one: nothing to wait for.) */
+  private marked(mark: unknown): boolean {
+    if (!Array.isArray(mark) || !this.routes.seen) return true;
+    for (const m of mark.slice(0, 8)) {
+      if (!Array.isArray(m) || typeof m[0] !== "string" || typeof m[1] !== "number" || typeof m[2] !== "number") continue;
+      if (!this.routes.seen(m[0], m[1], m[2])) return false;
+    }
+    return true;
   }
 
   private table(): Record<string, number> {

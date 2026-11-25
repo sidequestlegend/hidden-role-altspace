@@ -312,3 +312,45 @@ test("a burst of commands goes to the referee in one write and runs in one pass,
   assert.deepEqual(probe(sender, "burst").acks, [1, 2, 3, 4, 5, 6]);
   assert.ok(room.stats.userWrites - writes <= 6, `user-state writes for the burst: ${room.stats.userWrites - writes}`);
 });
+
+test("a command waits on the referee for the sender's earlier ownership claim and write (the command's write mark)", async () => {
+  for (const seed of [162, 163, 164]) {
+    const room = new FakeRoom({ seed });
+    const g = probeGame("mark");
+    const [a, b] = [enter(room, [g]), enter(room, [g])];
+    await untilStarted(room, [a, b], "mark");
+    await room.run(4000);
+    const referee = [a, b].find((client) => inst(client, "mark").networking.IsReferee)!;
+    const sender = referee === a ? b : a;
+    // The sender takes the object over and writes it, then asks the referee to add to it, in one action. The claim and
+    // the value are space state, the command is user state: two roads, and the command's may be the quicker one.
+    const p = probe(sender, "mark");
+    p.Set(5);
+    p.RequestSerialization();
+    p.SendCommand("Add", 1);
+    await room.run(4000);
+    for (const client of [a, b]) assert.equal(probe(client, "mark").value, 6, `seed ${seed}, ${client.name}: the referee added to the sender's value, and its write stood`);
+    assert.equal(inst(sender, "mark").networking.GetOwner(probe(sender, "mark").gameObject)?.sid, referee.sid);
+  }
+});
+
+test("digest() and version() cover per-player synced fields", async () => {
+  const room = new FakeRoom({ seed: 165 });
+  const g = makeGame({ slug: "rpd", behaviours: [{ id: "p", type: "Probe" }, { id: "sheet", type: "Sheet" }] });
+  const [a, b] = [enter(room, [g]), enter(room, [g])];
+  await untilStarted(room, [a, b], "rpd");
+  await room.run(1500);
+  const sheet = (viewer: FakeClient, who: FakeClient) => inst(viewer, "rpd").playerBehaviour<Sheet>(who.sid, "sheet")!;
+  const stamp = (client: FakeClient) => ({ version: inst(client, "rpd").version(), digest: inst(client, "rpd").digest() });
+  const before = stamp(a);
+  sheet(a, a).Hurt(3);
+  assert.notEqual(stamp(a).version, before.version, "the owner's serialisation moves its version");
+  await room.run(1500);
+  assert.equal(sheet(b, a).hp, 7);
+  assert.deepEqual(stamp(a), stamp(b), "both pages hold the same per-player writes, and agree");
+  assert.notEqual(stamp(a).digest, before.digest, "the per-player change is in the digest");
+  // A copy that differs (a page that went wrong) shows in the digest at the same version.
+  sheet(b, a).hp = 1;
+  assert.equal(stamp(b).version, stamp(a).version);
+  assert.notEqual(stamp(b).digest, stamp(a).digest);
+});

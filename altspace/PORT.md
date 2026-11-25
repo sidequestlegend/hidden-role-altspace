@@ -7,7 +7,7 @@ and look are this port's own. Nothing from the commercial game the upstream imit
 terms, task or sabotage names, room names, map layout, look or sounds.
 
 Written 2026-11-24; fix pass 2026-11-25 (portkit 812f285, the independent review's findings: see sections 3, 5
-"Trust", 8 Q3 and `TESTS.md`). Upstream commit `4c8d3e1`. Nothing upstream was opened in Unity; the TypeScript rules run and are
+"Trust", 8 Q3 and `TESTS.md`); re-synced to portkit c971100 the same day (rungs 0 to 4 again). Upstream commit `4c8d3e1`. Nothing upstream was opened in Unity; the TypeScript rules run and are
 tested in Node on portkit's fake room (rung 1). The Unity kit was built the same day (section 11): the station is
 generated from the map data, nothing upstream is imported, and rungs 2 to 4 pass in the editor (`TESTS.md`).
 
@@ -26,10 +26,10 @@ Contents: 1 Status, 2 Names and terms, 3 Decisions and deliberate differences, 4
 | Referee | Done: `"declared"` candidates (lobby players only); any referee change voids a running match |
 | Bots | Done: upstream's bots translated, an option (`bots` setting) |
 | Tests | `npm test`: typecheck, lint, **48 tests, 48 pass**: 9 golden-vector suites against the upstream C# (dotnet 8), 12 rules tests, 15 fake-room scenarios, 3 secrecy tests, 2 kit tests (console clicks per job kind, the bars, the post, a body marker, Leave, the boarding pad, the drawn regions), 7 tests of the review's findings (`fixpass.test.ts`) |
-| Build | `npm run build`: `Assets/WebRoot/pk-hidden-role.js`, 487,538 bytes (the game's and portkit's MIT notices in its banner) |
+| Build | `npm run build`: `Assets/WebRoot/pk-hidden-role.js`, 500,361 bytes on portkit c971100 (the game's and portkit's MIT notices in its banner) |
 | `bindings.json` | Written by the kit builder (124 objects, 62 refs, 51 behaviours, 24 events) |
-| Unity kit (section 11) | Built: `Assets/Kit/hidden-role.prefab` by `Assets/Kit/Editor/HiddenRoleKitBuilder.cs`; bundles Android 1,112 KiB, Windows 1,154 KiB, both PASS the app's kit check; licence texts in the bundles |
-| Rungs (`TESTS.md`) | Again after the fix pass (portkit 812f285, 2026-11-25): 0 and 1 pass; 2 passes (and the collider check against the rules' walkable test); 3 passes twice in a row (one person and five bots, 28 of 28 and 35 of 35, with new checks for the referee's positions, the jobs total and the wording); 4 passes twice in a row (two players and three bots, 35 of 35 each, with the bunkroom's Leave refused and the boarding pad sent back); `dist/` exported |
+| Unity kit (section 11) | Built: `Assets/Kit/hidden-role.prefab` by `Assets/Kit/Editor/HiddenRoleKitBuilder.cs`; bundles Android 1,116 KiB, Windows 1,155 KiB (portkit c971100), both PASS the app's kit check; licence texts in the bundles and in `dist/licenses/hidden-role/`; footprint the station's (123.5 x 3.45 x 112.85 m) |
+| Rungs (`TESTS.md`) | Again after the fix pass (portkit 812f285, 2026-11-25): 0 and 1 pass; 2 passes (and the collider check against the rules' walkable test); 3 passes twice in a row (one person and five bots, 28 of 28 and 35 of 35, with new checks for the referee's positions, the jobs total and the wording); 4 passes twice in a row (two players and three bots, 35 of 35 each, with the bunkroom's Leave refused and the boarding pad sent back); `dist/` exported. Again on portkit c971100: 0 to 2 pass, 3 twice in a row (58 of 58, 51 of 51), 4 twice in a row (35 of 35 each) |
 | Checklist (section 4, 82 items) | **60 Done, 21 Changed (deliberately), 0 Partial, 1 Left out** |
 
 ## 2. Names and terms
@@ -374,7 +374,7 @@ ceiling; bunkroom 70 m below the station.
 | `kit.test.ts` | 2 | With the kit builder's bindings: console clicks for every job kind, the work bar and the jobs bars; the muster post and a body marker clicked; Leave and the boarding pad in the lobby; the drawn regions |
 | `fixpass.test.ts` | 7 | The review's findings, each failing before its fix: 1 the downed and observers kept out of earshot (Leave and Enter refused, the boarding pad, 30 m out, the roof, 45 m up, the Commons; 55 m out left alone; the jobs total unchanged at the kill); 2 a claimed jump is not taken, the referee's position runs at most 4.6 m/s on open floor and arrives, never inside a prop, a 7 m hop taken at once; 3 the published total with waves, then D1's once seen; 4 no hooks on a published page; 6 a leaver's body; 7 a person's elimination 0.1 s before a bot's muster counts, every event in time order; 8 both MIT notices in the script's banner, the font's copyright lines and every licence file in the kit |
 
-Build: `npm run build` writes `../Assets/WebRoot/pk-hidden-role.js` (487,538 bytes, portkit 812f285); its banner holds
+Build: `npm run build` writes `../Assets/WebRoot/pk-hidden-role.js` (500,361 bytes, portkit c971100); its banner holds
 the game's MIT notice in full (`ts/script-header.txt`), then portkit's.
 
 Golden vectors: `npm run golden` runs `golden/extract.ts` (copies 31 rule members out of the upstream files, unchanged,
@@ -397,7 +397,7 @@ upstream checkout). `vectors/upstream.json` is checked in, so the tests run with
 | The app sends space state in batches every 0.2 s | Other pages see a change up to about 0.5 s after the referee's step | Measured in the fake room; tests wait for it |
 | `this.Host.op`, `UnityRandom`, portkit's `golden/UnityStubs.cs` (new) | Not used: the port's own `golden/UnityStubs.cs` has a seeded generator both sides share, which is all the vectors need | None |
 
-Portkit copy: `ts/portkit/` and `Packages/com.altspacegames.portkit/` mirror portkit commit `812f285` (re-synced in the fix pass, 2026-11-25, `sync.sh`).
+Portkit copy: `ts/portkit/` and `Packages/com.altspacegames.portkit/` mirror portkit commit `c971100` (re-synced 2026-11-25 after the fix pass, `sync.sh`; before that `812f285`). The game had no workaround of its own for anything c971100 fixes; the one change it asked for is `FootprintRoot => "Station"` (section 11).
 
 ### Still unverified (needs the app, a headset, or a person)
 
@@ -441,7 +441,7 @@ altspace/
     golden/               extract.ts, Harness.cs, UnityStubs.cs, Golden.csproj (gen/, bin/, obj/ ignored)
     vectors/upstream.json golden vectors
     tools/convert-map.ts  upstream map -> station-map.json (renames by index)
-    portkit/              copy of the shared kit (portkit commit 812f285)
+    portkit/              copy of the shared kit (portkit commit c971100)
     tools/walkable-grid.ts the rules' walkable test over the station -> vectors/walkable-grid.json (the collider check)
     tools/sightlines.ts   which regions of the station can be seen from which -> src/region-pvs.json
     test/kit.test.ts      the kit's clickable objects and bars on the fake room
@@ -533,8 +533,9 @@ casing, hatch); no outside art is used, so there was nothing to download or repl
 
 - Materials: 27, all URP Unlit (the look does not depend on the host world's lights, and no light is paid per
   object on a Quest), with URP's own keyword setup run on each. Textures: 6 of 128-256 px (ASTC 6x6 on Android) and
-  the font atlas. Bundles: Android 1,112 KiB, Windows 1,154 KiB (fix pass; 1,100 and 1,141 KiB before it: portkit's
-  larger relay graph and the licence texts).
+  the font atlas. Bundles: Android 1,116 KiB, Windows 1,155 KiB (portkit c971100: its relay graph has `pkHead` and
+  per-target launches; 1,112 and 1,154 KiB in the fix pass, 1,100 and 1,141 KiB before it: portkit's larger relay graph
+  and the licence texts).
 - Geometry: the shell is merged into one mesh per region and material (5,868 triangles in all, 144 renderers);
   11,200 mesh triangles in the whole kit without text. Static batching does not happen for kit objects instantiated
   at run time, so the merging is done by the builder.
@@ -558,3 +559,10 @@ All four found in the first pass are now in portkit (812f285) and this game uses
 are InputSim's (deleted from `HiddenRoleTools.cs`, which keeps `stats`); InputSim's pointer moves a pixel aside first
 (the test's own nudge is gone); the photo frames the station only (`PhotoRoot => "Station"`); and the runtime asks
 once at start where the head is (`localPosition()`).
+
+Found in the fix pass and now in portkit (c971100): the footprint can be set (`FootprintRoot => "Station"`), so
+`manifest.json` gives 123.5 x 3.45 x 112.85 m instead of 73.4 m tall (the bunkroom 70 m down lies under the station's
+plan, so the area it needs on the ground is unchanged; a host world must keep the space below the station free); and
+`playtest.sh --keep-play`, used for the back-to-back runs. The re-sync to c971100 needed no other change here: the game
+has no grabbables, no dealt draws, no head attachments and no relay op of its own, and its commands (`CmdStart`,
+`CmdAbort`) had no delay to drop.

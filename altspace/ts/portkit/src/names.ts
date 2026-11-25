@@ -37,6 +37,33 @@ export function networkId(slug: string, inst: string, objKey: string): string {
   return `${TAG}/${slug}/${inst}/${objKey}`;
 }
 
+/**
+ * The BS Object Id of a kit object that is attached to a player with autoSync (bindings `"attach": true`). The app
+ * networks such an attachment as the user-state key `attachment_<id>` and each other client re-parents its own copy of
+ * the object with that id, so every client gives the object the id as the kit loads (not only the page that attaches
+ * it), and the id must make a valid key: 1-64 of `A-Z a-z 0-9 _ - : @` with the prefix, so at most 53 characters, no
+ * `/` and no `.` (the synced-object ids above would be refused). `pk1:<slug>:<inst>:<objKey>`; one that would be longer,
+ * or whose key holds other characters, becomes `pk1:<slug>:<inst>:<hash>`, and then `pk1:<hash of it all>`.
+ */
+export function attachId(slug: string, inst: string, objKey: string): string {
+  const ok = (s: string) => s.length <= 53 && /^[A-Za-z0-9_\-:@]+$/.test(s);
+  const plain = `${TAG}:${slug}:${inst}:${objKey}`;
+  if (ok(plain)) return plain;
+  const short = `${TAG}:${slug}:${inst}:${fnv(objKey)}`;
+  if (ok(short)) return short;
+  return `${TAG}:${fnv(`${slug}:${inst}:${objKey}`)}${fnv(`${objKey}:${inst}:${slug}`)}`;
+}
+
+/** 32-bit FNV-1a as 8 hex digits (a short, stable name, not a security hash). */
+function fnv(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
 /** Space-state and user-state prefix, without the trailing dot. */
 export function statePrefix(slug: string, inst: string): string {
   return `${TAG}.${slug}.${inst}`;

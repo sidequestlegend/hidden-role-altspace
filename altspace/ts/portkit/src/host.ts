@@ -296,6 +296,14 @@ export class RelayHost implements HostActions {
     else this.event(name, target, text);
   }
 
+  /**
+   * A request the graph answers with a graph event (pkHead), sent at once and with no target (as the clock): `args`
+   * are sent as they are (ids and session ids, which need no encoding).
+   */
+  request(op: string, args: string[]): void {
+    this.platform.relaySend(relayPayload(this.slug, this.inst, [relayRecord(op, 0, args.map(encodeRelayArg))]));
+  }
+
   /** The clock is not batched: its answer is timed from the moment it is sent. */
   requestClock(): Promise<number> {
     const id = String(this.nextRequest++);

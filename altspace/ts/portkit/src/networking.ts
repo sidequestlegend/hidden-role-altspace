@@ -5,6 +5,7 @@
 import type { Behaviour } from "./behaviour.ts";
 import type { Player } from "./players.ts";
 import { GameObject } from "./scene.ts";
+import type { Vector3 } from "./values.ts";
 
 /** How this client came to the game it is in. */
 export type StartKind =
@@ -34,6 +35,7 @@ export interface NetHost {
   setCandidate(on: boolean): void;
   isCandidate(player: Player): boolean;
   startKind(): StartKind;
+  headOf?(player: Player | null, seconds?: number): Promise<Vector3 | null>;
 }
 
 type Target = Behaviour | GameObject;
@@ -58,6 +60,14 @@ export class Networking {
   /** The same as IsReferee, under the name upstream code uses. */
   get IsMaster(): boolean {
     return this.host.isReferee();
+  }
+
+  /**
+   * Where the app places `player`'s head: the SDK's Get User State through the relay op `pkHead`. Null when the app does
+   * not know (yet), on a kit without the op, or after `seconds`. A referee can check another player's claim with it.
+   */
+  HeadOf(player: Player | null, seconds = 2): Promise<Vector3 | null> {
+    return this.host.headOf ? this.host.headOf(player, seconds) : Promise.resolve(null);
   }
 
   /** The referee, or null while there is none. */

@@ -35,7 +35,9 @@ test("two copies of one game and a different game share a room and stay apart", 
   }
 
   // A game in the north copy...
+  // (one seat at a time: two clicks in the same instant race for the owner, and the room keeps one of them)
   a.click(SLUG, "north", "seatX");
+  await room.run(1500);
   b.click(SLUG, "north", "seatO");
   await room.run(1500);
   a.click(SLUG, "north", "cell4");

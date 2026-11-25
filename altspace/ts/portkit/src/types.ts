@@ -202,8 +202,10 @@ export interface KitObjectSpec {
   path: string;
   /** Set before any synced component is added; empty when the object needs none. */
   networkId: string;
-  /** The id the object takes if it is attached with autoSync and has none (`pk1/<slug>/<inst>/<objKey>`). Optional. */
+  /** The id the object takes if it is attached with autoSync and has none (`attachId`: `pk1:<slug>:<inst>:<objKey>`). Optional. */
   attachNetworkId?: string;
+  /** Bindings `"attach": true`: `networkId` is already the attachment id, set on every client as the kit loads. */
+  attach?: boolean;
   sync: "none" | "transform";
   grab: boolean;
   click: boolean;
@@ -351,4 +353,6 @@ export interface Platform {
   claimGame(slug: string, info: Record<string, unknown>): boolean;
   /** Publishes debugging hooks for one instance in the page registry (state digest for Play-mode tests). */
   expose(key: string, hooks: Record<string, unknown> | null): void;
+  /** True on a test page (`window.__pk1_debug === true` before the script ran): only there are debug hooks made. */
+  isTestPage?(): boolean;
 }

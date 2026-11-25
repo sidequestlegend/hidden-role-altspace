@@ -140,6 +140,11 @@ namespace PortKit
             public bool Grab, Click, Seat;
             /// <summary>False: the upstream prefab had it switched off; the kit holds it on and the runtime switches it off (README).</summary>
             public bool Active = true;
+            /// <summary>
+            /// True: attached to players with autoSync (AttachToHead): every client gives it its attachment id as the kit loads,
+            /// so the others can reproduce the attachment (README). Written only when true: a kit with none keeps its hash.
+            /// </summary>
+            public bool Attach;
         }
 
         public sealed class BehaviourEntry
@@ -179,6 +184,7 @@ namespace PortKit
                     ["path"] = pair.Value.Path, ["sync"] = pair.Value.Sync, ["grab"] = pair.Value.Grab, ["click"] = pair.Value.Click, ["seat"] = pair.Value.Seat,
                 };
                 if (!pair.Value.Active) objects[pair.Key]["active"] = false;       // written only when off: a kit with none keeps its hash
+                if (pair.Value.Attach) objects[pair.Key]["attach"] = true;         // written only when set, likewise
             }
             var body = new JObject
             {
@@ -249,7 +255,7 @@ namespace PortKit
                 {
                     if (string.IsNullOrEmpty(e.Name) || !System.Text.RegularExpressions.Regex.IsMatch(e.Name, "^[A-Za-z0-9_.-]+$"))
                         problems.Add($"a graph event needs a name of letters, digits, '_', '.' or '-' (got '{e.Name}')");
-                    else if (RelayGraph.RelayedKinds.Contains(e.Name) || new[] { "click", "grab", "drop", "triggerEnter", "triggerExit", "collisionEnter", "collisionExit", "clock" }.Contains(e.Name))
+                    else if (RelayGraph.RelayedKinds.Contains(e.Name) || new[] { "click", "grab", "drop", "triggerEnter", "triggerExit", "collisionEnter", "collisionExit", "clock", RelayGraph.HeadOp }.Contains(e.Name))
                         problems.Add($"graph event name '{e.Name}' is reserved for an object's own events (README, Graph to page)");
                     if (string.IsNullOrEmpty(e.Behaviour) || string.IsNullOrEmpty(e.Method)) problems.Add($"graph event '{e.Name}' needs a behaviour and a method");
                 }

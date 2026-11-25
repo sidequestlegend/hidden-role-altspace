@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { FakeRoom, type FakeClient } from "../src/platform/fake.ts";
 import { enter, inst, probe, probeGame, untilStarted } from "./games.ts";
+import { problems } from "./helpers.ts";
 
 async function three(seed: number): Promise<{ room: FakeRoom; a: FakeClient; b: FakeClient; c: FakeClient }> {
   const room = new FakeRoom({ seed });
@@ -205,6 +206,46 @@ test("after a reload, a game that calls beginDraw at once gets the saved draw ba
   secrets(again).beginDraw("round2");
   await room.run(2500);
   assert.equal(secrets(again).drawOf(again.sid, "round2").state, "numbered");
+});
+
+test("the referee reloads mid-round: the new referee publishes the table it carries, and the saved draw comes back", async () => {
+  const { room, a, b, c } = await three(86);
+  const all = [a, b, c];
+  const referee = all.find((client) => inst(client, "probe").networking.IsReferee)!;
+  const [player, watcher] = all.filter((client) => client !== referee) as [FakeClient, FakeClient];
+  secrets(referee).beginDraw("hand1");
+  secrets(player).beginDraw("hand1");
+  await room.run(3000);
+  const refDice = secrets(referee).myDraw("hand1")!.Ints(5, 6);
+  const playerDice = secrets(player).myDraw("hand1")!.Ints(5, 6);
+  // The referee's page reloads mid-round: another participant takes the seat, carrying the table it last read.
+  referee.leave();
+  const ok = await room.runUntil(() => [player, watcher].every((client) => {
+    const ref = inst(client, "probe").referee.current();
+    return !!ref && ref.sid !== referee.sid;
+  }), 15000);
+  assert.ok(ok, "a new referee was elected");
+  await room.run(500);
+  const successor = [player, watcher].find((client) => inst(client, "probe").networking.IsReferee)!;
+  const prefix = inst(successor, "probe").core.prefix;
+  const published = JSON.parse(String(room.userStateOf(successor.sid)[`${prefix}.k`]));
+  assert.ok(published.x?.fn, "the new referee has published the table it carries, before any entry changed");
+  assert.equal(Object.keys(published.x.fn.m).length, 2, "both entries are in it");
+  // The reloaded page starts in between and does not call beginDraw: the restore alone brings the draw back.
+  const again = enter(room, [probeGame()], { uid: referee.uid, device: referee.uid });
+  await untilStarted(room, [player, watcher, again], "probe");
+  await room.run(3000);
+  assert.deepEqual(secrets(again).myDraw("hand1")?.Ints(5, 6), refDice, "the saved draw came back");
+  assert.equal(secrets(again).drawOf(player.sid, "hand1").state, "numbered", "an entry numbered before it came is taken as found, not rejected");
+  for (const client of [player, watcher]) assert.equal(secrets(client).drawOf(again.sid, "hand1").state, "numbered", client.name);
+  secrets(again).revealDraw("hand1");
+  secrets(player).revealDraw("hand1");
+  await room.run(1500);
+  for (const client of [player, watcher, again]) {
+    assert.deepEqual(secrets(client).drawOf(again.sid, "hand1").draw?.Ints(5, 6), refDice, `${client.name}: the reloaded referee's dice`);
+    assert.deepEqual(secrets(client).drawOf(player.sid, "hand1").draw?.Ints(5, 6), playerDice, `${client.name}: the player's dice`);
+  }
+  assert.deepEqual(problems([player, watcher, again]), []);
 });
 
 test("a reload cannot re-roll a draw: a new session of the same user committing a new hash under a held label is rejected", async () => {
@@ -483,4 +524,51 @@ test("a deal checks its contributor list: none but the referee, or not the playe
   secrets(referee).revealDeal("full");
   await room.run(1500);
   for (const client of seated) assert.ok(secrets(client).verifyDeal("full", [...expected].reverse()), client.name);
+});
+
+test("a deal whose departed contributor's part this page never saw is 'unknown' here, not a wrong deal", async () => {
+  const { room, a, b, c } = await three(101);
+  const all = [a, b, c];
+  const referee = all.find((client) => inst(client, "probe").networking.IsReferee)!;
+  const [leaver, stayer] = all.filter((client) => client !== referee) as [FakeClient, FakeClient];
+  const listed = [leaver.sid, stayer.sid];
+  secrets(referee).beginDeal("hand1", listed);
+  await room.run(3000);
+  const order = secrets(referee).dealDraw("hand1")!.Ints(10, 52);
+  // A contributor leaves after revealing its part; a page that arrives after that never saw it.
+  leaver.leave();
+  await room.run(1000);
+  const late = enter(room, [probeGame()]);
+  await untilStarted(room, [referee, stayer, late], "probe");
+  secrets(referee).revealDeal("hand1");
+  await room.run(1500);
+  assert.deepEqual(secrets(stayer).verifyDeal("hand1", listed)?.Ints(10, 52), order, "a page that saw every part checks the deal");
+  assert.equal(secrets(stayer).checkDeal("hand1", listed).state, "ok");
+  assert.equal(secrets(late).verifyDeal("hand1", listed), null, "not a deal computed without the part it never saw");
+  const check = secrets(late).checkDeal("hand1", listed);
+  assert.equal(check.state, "unknown");
+  assert.equal(check.draw, null);
+
+  // A contributor whose page never answers and who leaves counts as absent ("-") for pages that followed the deal from
+  // its start, on the referee and on the others alike: the deal still checks out there.
+  const quiet = enter(room, [probeGame()]);
+  await untilStarted(room, [referee, stayer, late, quiet], "probe");
+  (secrets(quiet) as unknown as { reviewDeal: () => void }).reviewDeal = () => {}; // never commits or reveals
+  const listed2 = [stayer.sid, quiet.sid];
+  secrets(referee).beginDeal("hand2", listed2);
+  await room.run(1500);
+  quiet.leave();
+  await room.run(2000);
+  const order2 = secrets(referee).dealDraw("hand2")?.Ints(10, 52);
+  assert.ok(order2, "the referee deals once the silent contributor has gone");
+  secrets(referee).revealDeal("hand2");
+  await room.run(1500);
+  for (const client of [stayer, late]) assert.deepEqual(secrets(client).verifyDeal("hand2", listed2)?.Ints(10, 52), order2, client.name);
+
+  // A deal of the referee alone (a fallback after a timeout, or a referee playing alone) cannot be checked anywhere.
+  secrets(referee).beginDeal("alone", []);
+  await room.run(1500);
+  secrets(referee).revealDeal("alone");
+  await room.run(1500);
+  for (const client of [stayer, late]) assert.equal(secrets(client).checkDeal("alone").state, "solo", client.name);
 });

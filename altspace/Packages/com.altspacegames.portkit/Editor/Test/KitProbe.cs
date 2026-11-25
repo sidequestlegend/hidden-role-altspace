@@ -34,14 +34,39 @@ namespace PortKit
             };
         }
 
-        /// <summary>The object at `path` under the kit root of the holder object named `holder` ("." for the root).</summary>
+        /// <summary>
+        /// The object at `path` under the kit root of the holder object named `holder` ("." for the root). An object that is no
+        /// longer under the kit (the SDK re-parents an attached object under an avatar bone: AttachToHead) is looked for by
+        /// its name anywhere in the loaded scenes, inactive and hidden ones too (Resources.FindObjectsOfTypeAll: the avatar a remote attachment
+        /// goes under is not found by FindObjectsByType); among several, the one whose BS Object Id names this instance
+        /// (`pk1:&lt;slug&gt;:&lt;inst&gt;:...`, the attachment id) comes first (found by rp-toolkit, which had its own findpos).
+        /// </summary>
         public static Transform Find(string holder, string path)
         {
             var go = GameObject.Find(holder);
             if (go == null || go.transform.childCount == 0) return null;
             var root = go.transform.GetChild(0);
             path = path.Replace("%20", " ");
-            return path == "." ? root : root.Find(path);
+            if (path == ".") return root;
+            var found = root.Find(path);
+            if (found != null) return found;
+            string name = path.Substring(path.LastIndexOf('/') + 1);
+            var named = Resources.FindObjectsOfTypeAll<Transform>()
+                .Where(t => t.name == name && t.gameObject.scene.IsValid() && !t.IsChildOf(root)).ToList();
+            if (named.Count <= 1) return named.FirstOrDefault();
+            string prefix = holder + ":";
+            return named.FirstOrDefault(t => ObjectIdOf(t).StartsWith(prefix, StringComparison.Ordinal)) ?? named[0];
+        }
+
+        /// <summary>The id of the object's BS Object Id, or "" (read by reflection: the field is the SDK's).</summary>
+        static string ObjectIdOf(Transform t)
+        {
+            var type = GraphTypes.TryFind("BS.BSObjectId");
+            var id = type != null ? t.GetComponent(type) : null;
+            if (id == null) return "";
+            var flags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var value = type.GetField("Id", flags)?.GetValue(id) ?? type.GetProperty("Id", flags)?.GetValue(id);
+            return value as string ?? "";
         }
 
         static string F(float v) => v.ToString("F3", CultureInfo.InvariantCulture);
@@ -66,7 +91,16 @@ namespace PortKit
                 return null;
             }
             var t = Find(a[0], a.Length > 2 ? a[2] : ".");
-            if (t == null) { reply("error: not found"); return null; }
+            if (t == null)
+            {
+                // say what goes by that name, for a test that has to find out where an object went
+                string leaf = (a.Length > 2 ? a[2] : ".").Replace("%20", " ");
+                leaf = leaf.Substring(leaf.LastIndexOf('/') + 1);
+                var seen = Resources.FindObjectsOfTypeAll<Transform>().Where(x => x.name == leaf).Take(6)
+                    .Select(x => (x.gameObject.scene.IsValid() ? x.gameObject.scene.name : "(no scene)") + ":" + (x.parent != null ? x.parent.name : "(root)"));
+                reply("error: not found" + (seen.Any() ? " (named so: " + string.Join(", ", seen) + ")" : ""));
+                return null;
+            }
             switch (what)
             {
                 case "pos":

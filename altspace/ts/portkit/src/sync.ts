@@ -93,6 +93,12 @@ export interface Slot {
   warnedNotOwner: boolean;
   /** Called whenever newer data has been applied, so held network events can run. */
   onApplied: (() => void) | null;
+  /** The local player's last write (sequence number, and when), and the highest of its own writes the room echoed. */
+  ownN: number;
+  ownAt: number;
+  echoN: number;
+  /** When the local player's pending claim was written. */
+  claimAt: number;
 }
 
 export interface SyncStats {
@@ -156,6 +162,10 @@ export class Sync {
         ownerView: null,
         warnedNotOwner: false,
         onApplied: null,
+        ownN: 0,
+        ownAt: 0,
+        echoN: 0,
+        claimAt: 0,
       };
       this.slots.set(slotId, slot);
     } else if (mode === "continuous" || (slot.mode === "none" && mode !== "none")) slot.mode = mode;
@@ -254,6 +264,7 @@ export class Sync {
       }
     });
     slot.pending = { g, sid, timer };
+    slot.claimAt = this.core.platform.clock.now();
     this.stats.claims++;
     this.core.set(`o.${slot.id}`, asciiJson(record));
     this.noteOwner(slot);
@@ -414,6 +425,28 @@ export class Sync {
     }
   }
 
+  /**
+   * The local player's ownership claims and writes the room has not echoed yet (made in the last `withinMs`): what a
+   * command sent now must not overtake (commands.ts). Each is [slot id, claim generation or 0, write sequence or 0].
+   */
+  unechoedMarks(withinMs: number, max = 8): Array<[string, number, number]> {
+    const now = this.core.platform.clock.now();
+    const out: Array<[string, number, number]> = [];
+    for (const slot of this.slots.values()) {
+      const g = slot.pending && slot.pending.sid === this.me && now - slot.claimAt <= withinMs ? slot.pending.g : 0;
+      const n = slot.ownN > slot.echoN && now - slot.ownAt <= withinMs ? slot.ownN : 0;
+      if (g || n) out.push([slot.id, g, n]);
+    }
+    return out.slice(-max);
+  }
+
+  /** Has this client seen a claim of generation `g` (or a later one) and a write numbered `n` (or later) of a slot? */
+  hasSeen(id: string, g: number, n: number): boolean {
+    const slot = this.slots.get(id);
+    if (!slot) return true;
+    return slot.topG >= g && slot.seenN >= n;
+  }
+
   /** Serialises one slot now (used when an event must follow its state). Returns the marker of what it holds. */
   flushOne(slot: Slot): Marker | null {
     if (slot.dirty && this.started && this.isOwner(slot)) {
@@ -436,6 +469,8 @@ export class Sync {
     for (const [key, value] of encoded.writes) this.core.set(key, value);
     slot.chunks = encoded.chunks;
     slot.applied = { g, n, w: this.me };
+    slot.ownN = n;
+    slot.ownAt = this.core.platform.clock.now();
     slot.lastSent = canonicalJson(d);
     if (slot.grouped) for (const member of slot.members) member.lastPart = canonicalJson(d[member.id] ?? null);
     const kept = { d, marker: slot.applied };
@@ -514,6 +549,7 @@ export class Sync {
     if (decoded.kind !== "value") return;
     const x = decoded.record;
     if (x.n > slot.seenN) slot.seenN = x.n;
+    if (x.w === this.me && x.n > slot.echoN) slot.echoN = x.n;
     slot.chunks = decoded.chunks;
     if (x.e !== this.referee.epoch) return; // another epoch: as good as absent
     const a = slot.applied;

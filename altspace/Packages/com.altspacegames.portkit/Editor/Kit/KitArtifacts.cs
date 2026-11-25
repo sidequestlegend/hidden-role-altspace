@@ -24,6 +24,7 @@ namespace PortKit
     ///         pk-&lt;slug&gt;.js                    the snippet's script, from Assets/WebRoot (built by the TypeScript side)
     ///         &lt;slug&gt;.jpg                      the photo
     ///         &lt;slug&gt;.snippet.html             the snippet's markup; {SCRIPT} stands for the script's address, known at release
+    ///         licenses/&lt;slug&gt;/&lt;file&gt;         the full licence texts packed into the bundles (KitBundles.Licences)
     ///         manifest.json                   per kit: title, texts, footprint, bindings hash, check verdicts, and the
     ///                                         sha1 and size of every file
     /// Report: Logs/portkit_artifacts.txt (DONE or FAILED; a kit with a file missing is listed and fails the export).
@@ -43,10 +44,12 @@ namespace PortKit
         /// <summary>
         /// The box around everything the kit draws, in the kit's own axes (the kit at the origin, unturned). Objects the
         /// bindings write "active": false (saved on only so that the page can find them; the runtime switches them off) and
-        /// particle systems (their bounds are the whole emission volume, not what is seen) do not count.
+        /// particle systems (their bounds are the whole emission volume, not what is seen) do not count; world-space uGUI
+        /// does (Drawn). The builder can name the part measured (KitBuilder.FootprintRoot) or give the box (FootprintBounds).
         /// </summary>
         public static Bounds Footprint(GameObject prefab, KitBuilder kit = null)
         {
+            if (kit?.FootprintBounds is Bounds given) return given;
             var scene = EditorSceneManager.NewPreviewScene();
             try
             {
@@ -54,7 +57,9 @@ namespace PortKit
                 SceneManager.MoveGameObjectToScene(copy, scene);
                 copy.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
                 if (kit != null) SwitchOffInactive(kit, copy);
-                return Drawn(copy).bounds;
+                var measured = copy.transform;
+                if (kit?.FootprintRoot != null) measured = Find(copy.transform, kit.FootprintRoot) ?? throw new Exception($"FootprintRoot '{kit.FootprintRoot}' is not a path in the kit");
+                return Drawn(measured.gameObject).bounds;
             }
             finally { EditorSceneManager.ClosePreviewScene(scene); }
         }
@@ -87,16 +92,36 @@ namespace PortKit
             return at;
         }
 
-        /// <summary>The box around the renderers under `root` that are on and are not particle systems, and how many there were.</summary>
+        /// <summary>
+        /// The box around what `root` draws, and how many things that was: the renderers that are on and are not particle
+        /// systems or trails, and the corners of every uGUI graphic that is on under a world-space Canvas (a Canvas draws
+        /// through CanvasRenderers, which are not Renderers: a kit of panels used to have no footprint; found by mini golf
+        /// and treasure hunt). A graphic whose colour is fully transparent does not count.
+        /// </summary>
         public static (Bounds bounds, int count) Drawn(GameObject root)
         {
             var bounds = new Bounds();
             int count = 0;
+            void Take(Bounds b)
+            {
+                if (count++ == 0) bounds = b;
+                else bounds.Encapsulate(b);
+            }
             foreach (var r in root.GetComponentsInChildren<Renderer>(false))
             {
                 if (!r.enabled || r is ParticleSystemRenderer || r is TrailRenderer) continue;
-                if (count++ == 0) bounds = r.bounds;
-                else bounds.Encapsulate(r.bounds);
+                Take(r.bounds);
+            }
+            var corners = new Vector3[4];
+            foreach (var graphic in root.GetComponentsInChildren<UnityEngine.UI.Graphic>(false))
+            {
+                if (!graphic.enabled || graphic.color.a <= 0f) continue;
+                var canvas = graphic.canvas;
+                if (canvas == null || !canvas.enabled || canvas.rootCanvas.renderMode != RenderMode.WorldSpace) continue;
+                graphic.rectTransform.GetWorldCorners(corners);
+                var b = new Bounds(corners[0], Vector3.zero);
+                for (int i = 1; i < 4; i++) b.Encapsulate(corners[i]);
+                Take(b);
             }
             return (bounds, count);
         }
@@ -157,7 +182,7 @@ namespace PortKit
                     }
                     var (bounds, drawn) = Drawn(shown.gameObject);
                     if (kit.PhotoBounds.HasValue) bounds = kit.PhotoBounds.Value;     // the kit is at the origin, unturned: its axes are the world's
-                    if (drawn == 0 && !kit.PhotoBounds.HasValue) throw new Exception("nothing to photograph (no renderer on)");
+                    if (drawn == 0 && !kit.PhotoBounds.HasValue) throw new Exception("nothing to photograph (no renderer or world-space uGUI on)");
                     var sun = new GameObject("Sun");
                     SceneManager.MoveGameObjectToScene(sun, scene);
                     var light = sun.AddComponent<Light>();
@@ -246,6 +271,10 @@ namespace PortKit
                     }
                     Put(kit.ScriptPath, $"pk-{kit.Slug}.js");
                     Put(PhotoPath(kit.Slug), $"{kit.Slug}.jpg");
+                    // the full licence texts the bundles carry, beside the script and the bundles (found by chess: dist/ had none)
+                    string licenses = $"{Folder}/licenses/{kit.Slug}";
+                    if (Directory.Exists(licenses)) Directory.Delete(licenses, true);
+                    foreach (var text in KitBundles.Licences(kit)) Put(text, $"licenses/{kit.Slug}/{Path.GetFileName(text)}");
                     string markup = Markup(kit, footprint);
                     File.WriteAllText($"{Folder}/{kit.Slug}.snippet.html", markup, new UTF8Encoding(false));
                     files[$"{kit.Slug}.snippet.html"] = new JObject { ["sha1"] = Sha1(Encoding.UTF8.GetBytes(markup)), ["bytes"] = Encoding.UTF8.GetByteCount(markup) };
@@ -266,7 +295,8 @@ namespace PortKit
                         ["files"] = files,
                     };
                     if (missing.Count > 0) { report.AppendLine($"FAILED {kit.Slug}: missing {string.Join(", ", missing)}"); ok = false; }
-                    else report.AppendLine($"ok {kit.Slug}: {files.Count} files, footprint {N(footprint.size.x)} x {N(footprint.size.y)} x {N(footprint.size.z)} m, bindings {bindings}");
+                    else report.AppendLine($"ok {kit.Slug}: {files.Count} files ({files.Properties().Count(f => f.Name.StartsWith("licenses/"))} licence texts), " +
+                                           $"footprint {N(footprint.size.x)} x {N(footprint.size.y)} x {N(footprint.size.z)} m{(kit.FootprintBounds.HasValue ? " (FootprintBounds)" : kit.FootprintRoot != null ? $" ('{kit.FootprintRoot}')" : "")}, bindings {bindings}");
                 }
                 File.WriteAllText(manifestPath, CanonicalJson.WriteIndented(manifest), new UTF8Encoding(false));
                 report.AppendLine($"wrote {manifestPath}");

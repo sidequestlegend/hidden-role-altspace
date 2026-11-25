@@ -42,6 +42,9 @@ namespace HiddenRole
         public override bool Single => true;
         /// <summary>The photo shows the station only (the bunkroom 70 m below would shrink it to a speck).</summary>
         public override string PhotoRoot => "Station";
+        /// <summary>The footprint is the station's too: the bunkroom 70 m below would make it 73 m tall. The bunkroom
+        /// lies under the station's plan, so a host world only needs the station's area and height clear.</summary>
+        public override string FootprintRoot => "Station";
         /// <summary>5 cm up, so the station's floor never fights a host world's ground at 0.</summary>
         public override string SnippetPosition => "0 0.05 0";
         public override IReadOnlyList<(string name, string value)> SnippetSettings => new[]

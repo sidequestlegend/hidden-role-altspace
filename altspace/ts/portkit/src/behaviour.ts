@@ -100,9 +100,10 @@ export interface InputView {
   readonly IsVR: boolean | null;
   /**
    * True when `point` is within `metres` of the nearest of the local head and hands (as last reported), the
-   * measure clicks use. True when no pose is known yet, or `metres` is 0 or less.
+   * measure clicks use. True when `metres` is 0 or less. While no pose or position is known yet: `whenUnknown`
+   * (default true, as before; pass false to fail closed, for a check that must not let an unmeasured click count).
    */
-  InReach(point: Vector3, metres: number): boolean;
+  InReach(point: Vector3, metres: number, whenUnknown?: boolean): boolean;
   /** Moves the local player: position, the way they face (degrees about Y), and whether to stop their movement. */
   TeleportTo(position: Vector3, yDegrees: number, stopMovement?: boolean): void;
   /**

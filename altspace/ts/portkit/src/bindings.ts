@@ -17,6 +17,12 @@ export interface BindingObject {
    * as it has found it. Absent: on.
    */
   active?: boolean;
+  /**
+   * The object is attached to players with autoSync (`GameObject.AttachToHead(..., true)`): every client gives it its
+   * attachment id (`attachId`) as the kit loads, so the others can reproduce the attachment. Written by
+   * `KitStage.Attachable` (C#). Absent: false.
+   */
+  attach?: boolean;
 }
 
 export interface BindingBehaviour {
@@ -139,6 +145,7 @@ export function validateBindings(json: unknown): Bindings {
     const o = objects[key] as Record<string, unknown>;
     normalObjects[key] = { path: o.path as string, sync: o.sync === "transform" ? "transform" : "none", grab: o.grab === true, click: o.click === true, seat: o.seat === true };
     if (o.active === false) normalObjects[key]!.active = false;
+    if (o.attach === true) normalObjects[key]!.attach = true;
   }
   return {
     schema: 1,

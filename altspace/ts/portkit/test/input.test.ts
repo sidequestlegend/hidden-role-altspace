@@ -229,3 +229,47 @@ test("reach counts from the start: the runtime asks once where the head is, and 
   assert.equal(probe(b, "spawn").Input.Position, null);
   assert.ok(b.logged("error").length === 0);
 });
+
+test("InReach fails closed on request, and reachWhenUnknown makes unmeasured clicks not count", async () => {
+  const room = new FakeRoom({ seed: 114 });
+  const g = makeGame({ slug: "closed", objects: ["clickButton"], behaviours: [{ id: "p", type: "Probe", object: "clickButton" }], definition: { interactReach: 1, reachWhenUnknown: false } });
+  const a = enter(room, [g]); // no head reading answers: the page knows no position
+  await untilStarted(room, [a], "closed");
+  await room.run(6000);
+  const p = probe(a, "closed");
+  const at = new Vector3(0, 1, 0);
+  assert.equal(p.Input.Position, null);
+  assert.equal(p.Input.InReach(at, 1), true, "as before by default");
+  assert.equal(p.Input.InReach(at, 1, false), false, "fail closed when asked");
+  a.click("closed", "0", "clickButton", at);
+  assert.equal(p.interacts, 0, "the game said unmeasured clicks do not count");
+  a.teleported(new Vector3(0, 1, 0.5));
+  assert.equal(p.Input.InReach(at, 1, false), true);
+  a.click("closed", "0", "clickButton", at);
+  assert.equal(p.interacts, 1);
+});
+
+test("Networking.HeadOf: where the app places another player's head (relay op pkHead); null when it does not know", async () => {
+  const room = new FakeRoom({ seed: 115 });
+  const g = makeGame({ slug: "heads", objects: ["clickButton"], behaviours: [{ id: "p", type: "Probe", object: "clickButton" }] });
+  const [a, b] = [enter(room, [g]), enter(room, [g])];
+  await untilStarted(room, [a, b], "heads");
+  const net = probe(a, "heads").Networking;
+  const other = net.GetPlayers().find((pl) => pl.sid === b.sid)!;
+  const ask = async (seconds?: number) => {
+    let answer: unknown = "pending";
+    void net.HeadOf(other, seconds).then((v) => (answer = v));
+    await room.run(3000);
+    return answer as Vector3 | null | "pending";
+  };
+  assert.equal(await ask(), null, "no head placed yet: the app answers 0 0 0, which is unknown");
+  b.head = new Vector3(2, 1.7, -3);
+  const head = await ask();
+  assert.ok(head instanceof Vector3 && head.x === 2 && head.y === 1.7 && head.z === -3, `the app head: ${String(head)}`);
+  assert.deepEqual(a.graph("heads").events.filter((e) => e.op === "pkHead").length, 2);
+  // A kit built before the op answers nothing: null after the time limit.
+  room.headAnswers = false;
+  assert.equal(await ask(1), null);
+  assert.equal(await net.HeadOf(null), null);
+  assert.deepEqual(a.notes.filter((n) => n.startsWith("graph")), []);
+});

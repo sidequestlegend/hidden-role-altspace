@@ -104,6 +104,8 @@ type Verdict = "ok" | "pending" | "bad";
 
 /** How long the referee keeps the entry of a player who left, for a page reload to pick it up again. */
 const DRAW_KEEP_MS = 120000;
+/** After a new referee publishes the table it carries, it numbers nothing new for this long (see publishDrawTable). */
+const CARRY_HOLD_MS = 500;
 /** How many first answers (user and label) the referee remembers per epoch, to refuse a re-roll after DRAW_KEEP_MS. */
 const ANSWERED_MAX = 1024;
 
@@ -136,6 +138,15 @@ interface DealRecord {
   r?: string;
 }
 
+/**
+ * What `checkDeal` found. "ok": the deal checks out here (`draw` is it). "pending": no such deal, or its seed is not
+ * revealed yet. "solo": nobody contributed but the referee (a fallback deal after a timeout, or a referee playing alone):
+ * the referee could have searched seeds before committing, so it cannot be checked by anyone. "unknown": this page cannot
+ * check it (it did not see a contribution of a player who has left, or it first saw the deal with its seed revealed).
+ * "failed": the deal does not check out (a seed that is not the committed one, contributors not the ones expected).
+ */
+export type DealCheck = { state: "ok"; draw: Draw; why: string } | { state: "pending" | "solo" | "unknown" | "failed"; draw: null; why: string };
+
 interface Contribution {
   l: string;
   h: string;
@@ -145,6 +156,20 @@ interface Contribution {
 function parseDeal(raw: unknown): DealRecord | null {
   if (!isRecord(raw) || typeof raw.l !== "string" || typeof raw.h !== "string" || !Array.isArray(raw.s)) return null;
   return { l: raw.l, h: raw.h, s: raw.s.filter((x): x is string => typeof x === "string"), p: raw.p === 1 ? 1 : 0, r: typeof raw.r === "string" ? raw.r : undefined };
+}
+
+/**
+ * One deal as this page followed it. `fromStart`: first seen while still committing (no contribution can have been
+ * revealed before that). `watched`: listed sessions seen present while following it: one that leaves without a reveal
+ * having reached this page did not reveal (a player's records reach every page in order, before its departure).
+ */
+interface DealSeen {
+  h: string;
+  refSid: string;
+  parts: Map<string, { h: string; c?: string }>;
+  fromStart: boolean;
+  withSeed: boolean;
+  watched: Set<string>;
 }
 
 function parseContribution(raw: unknown): Contribution | null {
@@ -193,7 +218,7 @@ export class Secrets {
   /** This player's contribution to a deal. */
   private myContribution: { label: string; c: string } | null = null;
   /** Commitments and contributions as first seen, per deal label and session (they outlive a player's visit). */
-  private readonly dealSeen = new Map<string, { h: string; refSid: string; parts: Map<string, { h: string; c?: string }> }>();
+  private readonly dealSeen = new Map<string, DealSeen>();
   /** Told when a player's draw changes state. */
   onDrawChanged: (sid: string, label: string, status: DrawStatus) => void = () => {};
 
@@ -366,6 +391,8 @@ export class Secrets {
     this.collect();
     const entry = table[sid];
     if (!entry) return null;
+    // Before the referee's table is published there is no baseline: nothing is pinned or judged yet.
+    if (this.baseline === null) return { entry, verdict: "pending" };
     const key = `${entry[5]}\n${entry[0]}`;
     let pin = this.pins.get(key);
     if (!pin) {
@@ -406,7 +433,10 @@ export class Secrets {
     if (this.baseline === null && epoch !== 0) {
       const ref = this.referee.current();
       if (!ref) return;
-      // the referee's leaf holds no table yet: nothing has been numbered in this epoch, so everything from now on is live
+      // No baseline while the current referee has published nothing: a new referee publishes the table it carries as
+      // its term starts (publishDrawTable), so until then the table read here may be missing what was numbered before.
+      // An empty table that is published means nothing has been numbered in this epoch: everything from now on is live.
+      if (!this.numbers.published()) return;
       this.baseline = new Set(Object.keys(table).map((sid) => `${table[sid]![5]}\n${table[sid]![0]}`));
     }
   }
@@ -486,7 +516,26 @@ export class Secrets {
     }
   }
 
+  /**
+   * The referee publishes the number table it carries, if it has not this term. The runtime does this by itself as
+   * soon as a referee's term starts (a game need not call it; it is harmless to): a page that starts in between reads
+   * the whole table, so its saved draw comes back and what was numbered before it came is taken as found.
+   */
+  publishDrawTable(): void {
+    if (this.core.disposed || !this.referee.isMe()) return;
+    if (!this.numbers.ensurePublished()) return;
+    // Nothing new is numbered until the carried table has gone out on its own (the page flushes at the end of the
+    // tick, and the app merges what it is handed within 0.2 s): a page that starts in between takes the carried table
+    // as what was there before it, and everything numbered after it as live.
+    this.carryHoldUntil = this.core.platform.clock.now() + CARRY_HOLD_MS;
+    this.core.scheduler.after(CARRY_HOLD_MS + 1, () => this.review());
+  }
+
+  private carryHoldUntil = -Infinity;
+
   private officiate(): void {
+    this.publishDrawTable();
+    if (this.core.platform.clock.now() < this.carryHoldUntil) return;
     const table = this.numbers.working();
     let changed = false;
     const now = this.nowSeconds();
@@ -645,7 +694,7 @@ export class Secrets {
     const seen = this.dealSeen.get(label);
     if (deal.r !== undefined) return seen && sha256Text(deal.r) === seen.h ? "revealed" : "invalid";
     if (deal.p === 0) return "committing";
-    return this.contributions(deal) ? "ready" : "revealing";
+    return Array.isArray(this.contributions(deal)) ? "ready" : "revealing";
   }
 
   /**
@@ -656,7 +705,7 @@ export class Secrets {
     const deal = this.currentDeal();
     if (!this.referee.isMe() || !deal || deal.l !== label || !this.dealSeed || this.dealSeed.label !== label) return null;
     const parts = this.contributions(deal);
-    return parts ? new Draw(dealSeedOf(this.dealSeed.seed, label, parts)) : null;
+    return Array.isArray(parts) ? new Draw(dealSeedOf(this.dealSeed.seed, label, parts)) : null;
   }
 
   /** The referee publishes its seed (after the hand), so that everyone can check the deal. */
@@ -674,31 +723,40 @@ export class Secrets {
 
   /**
    * After revealDeal: the deal, recomputed here from the referee's seed and the contributions this client saw; null if it
-   * does not check out. A deal with no contributor but the referee is never fair (the referee could have searched seeds
-   * before committing): null, and a warning. With `expected` (the session ids the game says must contribute: the seated
-   * players), the referee's list must be exactly those, or the deal is null too (a referee that leaves players out of
-   * the list, or lists only accomplices).
+   * does not check out, or cannot be checked here (`checkDeal` says which). A deal with no contributor but the referee is
+   * never fair (the referee could have searched seeds before committing): null, and a warning. With `expected` (the
+   * session ids the game says must contribute: the seated players), the referee's list must be exactly those, or the deal
+   * is null too (a referee that leaves players out of the list, or lists only accomplices). A page that did not see the
+   * contribution of a listed player who has since left gets null ("unknown"), never a deal computed without that part.
    */
   verifyDeal(label: string, expected?: string[]): Draw | null {
+    return this.checkDeal(label, expected).draw;
+  }
+
+  /** As verifyDeal, saying why: "ok" (with the draw), "pending", "solo", "unknown" or "failed" (see DealCheck). */
+  checkDeal(label: string, expected?: string[]): DealCheck {
     const deal = this.currentDeal();
-    if (!deal || deal.l !== label || deal.r === undefined) return null;
+    if (!deal || deal.l !== label || deal.r === undefined) return { state: "pending", draw: null, why: "no revealed deal under that label" };
     const ref = this.referee.current();
     if (!deal.s.some((sid) => sid !== ref?.sid)) {
       this.warnDeal(label, "lists no contributor but the referee: its outcome was the referee's own choice");
-      return null;
+      return { state: "solo", draw: null, why: "no contributor but the referee: it cannot be checked" };
     }
     if (expected) {
       const want = [...new Set(expected)].sort();
       const listed = [...new Set(deal.s)].sort();
       if (want.length !== listed.length || want.some((sid, i) => sid !== listed[i])) {
         this.warnDeal(label, `lists ${listed.length} contributors, not the ${want.length} the game expects`);
-        return null;
+        return { state: "failed", draw: null, why: "the contributors are not the ones expected" };
       }
     }
     const seen = this.dealSeen.get(label);
-    if (!seen || sha256Text(deal.r) !== seen.h) return null;
+    if (!seen || seen.withSeed) return { state: "unknown", draw: null, why: "this page first saw the deal with its seed already revealed" };
+    if (sha256Text(deal.r) !== seen.h) return { state: "failed", draw: null, why: "the revealed seed is not the committed one" };
     const parts = this.contributions(deal);
-    return parts ? new Draw(dealSeedOf(deal.r, label, parts)) : null;
+    if (parts === "unknown") return { state: "unknown", draw: null, why: "a contributor left before this page saw its part" };
+    if (parts === "wait") return { state: "pending", draw: null, why: "a contribution is still missing" };
+    return { state: "ok", draw: new Draw(dealSeedOf(deal.r, label, parts)), why: "" };
   }
 
   private readonly warnedDeals = new Set<string>();
@@ -713,16 +771,22 @@ export class Secrets {
     return ref ? parseDeal(this.presence.extra(ref.sid, "dl")) : null;
   }
 
-  /** Every listed contribution, revealed and matching its commitment ("-" for a listed player who left); null while one is missing. */
-  private contributions(deal: DealRecord): string[] | null {
+  /**
+   * Every listed contribution, revealed and matching its commitment ("-" for a listed player who left without revealing
+   * one); "wait" while one may still come; "unknown" when a listed player has left and this page cannot tell whether
+   * they revealed (it never saw them while following the deal, and did not follow it from its start).
+   */
+  private contributions(deal: DealRecord): string[] | "wait" | "unknown" {
     const seen = this.dealSeen.get(deal.l);
-    if (!seen) return null;
+    if (!seen) return "wait";
     const out: string[] = [];
     for (const sid of deal.s) {
       const part = seen.parts.get(sid);
       if (part && part.c !== undefined) out.push(part.c);
-      else if (!this.presence.has(sid) && (!part || deal.p === 1)) out.push("-");
-      else return null;
+      else if (this.presence.has(sid)) return "wait";
+      else if (!seen.watched.has(sid) && !seen.fromStart) return "unknown";
+      else if (!part || deal.p === 1) out.push("-");
+      else return "wait";
     }
     return out;
   }
@@ -734,11 +798,12 @@ export class Secrets {
     if (!ref || !deal) return;
     let seen = this.dealSeen.get(deal.l);
     if (!seen || seen.refSid !== ref.sid) {
-      seen = { h: deal.h, refSid: ref.sid, parts: new Map() };
+      seen = { h: deal.h, refSid: ref.sid, parts: new Map(), fromStart: deal.p === 0 && deal.r === undefined, withSeed: deal.r !== undefined, watched: new Set() };
       this.dealSeen.set(deal.l, seen);
       while (this.dealSeen.size > 8) this.dealSeen.delete(this.dealSeen.keys().next().value as string);
     }
     for (const sid of deal.s) {
+      if (this.presence.has(sid)) seen.watched.add(sid);
       const part = parseContribution(this.presence.extra(sid, "dc"));
       if (!part || part.l !== deal.l) continue;
       const known = seen.parts.get(sid);

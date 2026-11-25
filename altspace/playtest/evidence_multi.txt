@@ -8,7 +8,7 @@ local: script and bundles from the test server http://localhost:44100
 [main] 0 of 10 + 3 bot(s) (need 4)
 [main] oin to play.
 [main] PASS the hub board's text reached Unity (relay op text): HIDDEN ROLE  -  station shift / Lobby: 0 of 10 + 3 bot(s) (need 4)
-[main] PASS two players in the room: [{"id":1,"name":"Main Editor","sid":"rsess_65efa04d-6b4c-402e-805d-5dcda7ae13fd"},{"id":2,"name":"Player 2","sid":"rsess_3fb98668-44d1-4eed-a25a-544ed85279ed"}]
+[main] PASS two players in the room: [{"id":1,"name":"Main Editor","sid":"rsess_ec87f44a-6770-4525-82b0-c636f35a27ee"},{"id":2,"name":"Player 2","sid":"rsess_7f672e75-8a44-46aa-a76e-249efbd9cdfb"}]
 [main] INFO B (saboteur) is Main Editor
 [main] CMD h3 walk 0.000 15.020 3.5
 [main] REPLY h3 ok reached 0.00 14.90
@@ -17,24 +17,24 @@ local: script and bundles from the test server http://localhost:44100
 [main] CMD h5 look 1.150 2.580 17.545
 [main] REPLY h5 ok camera at 0.00,1.60,14.90
 [main] CMD h6 pointer 1.150 2.580 17.545
-[main] REPLY h6 ok screen 584,512 of 1169x1024
+[main] REPLY h6 ok screen 585,512 of 1169x1024
 [main] CMD h7 click 1.150 2.580 17.545
-[main] REPLY h7 ok screen 584,512 of 1169x1024
-[main] INFO click Join: ok screen 584,512 of 1169x1024 at 1.150 2.580 17.545
+[main] REPLY h7 ok screen 585,512 of 1169x1024
+[main] INFO click Join: ok screen 585,512 of 1169x1024 at 1.150 2.580 17.545
 [main] PASS Join on the hub board puts the player in the lobby (click through the SDK's desktop player): joined true
 [main] CMD h8 probe pk1:hidden-role:0 text Personal/Panel/Text
 [main] REPLY h8 You are a SABOTEUR
 [main] lock: 900s
 [main] obs (5 left):
-[main] e the dive lamps (Hold) - Tether Room 43 m
-[main] t the cell clamps (Tap) - Battery Bay 47 m
-[main] the cable run (Tap) - Battery Bay 55 m
-[main]  out the lime trays (Tap) - Scrubber Room 62 m
-[main]  the flood dampers (Tap) - Ballast Control 74 m
+[main] d the chamber gauge (Hold) - Moon Pool 35 m
+[main]  loose crates (Tap) - Kelp Store 74 m
+[main] hydrophone gain (Timing) - Sonar Room 76 m
+[main]  the cable run (Tap) - Battery Bay 96 m
+[main] l the trim tanks (Timing) - Ballast Control 97 m
 [main] te: ready (Q)
 [main] 4s
-[main] 37.3 m
-[main] mons
+[main] 4.4 m
+[main]  Lab
 [main] PASS each player sees only their own role (sealed entry; no role in the public record): saboteur, public roles [], panel 'You are a SABOTEUR'
 [main] PASS the other page saw a different role of its own: technician: 'You are a TECHNICIAN'
 [main] CMD h9 where
@@ -50,7 +50,7 @@ local: script and bundles from the test server http://localhost:44100
 [main] CMD h13 click -0.224 1.840 6.631
 [main] REPLY h13 ok screen 585,512 of 1169x1024
 [main] INFO click Pass: ok screen 585,512 of 1169x1024 at -0.224 1.840 6.631
-[main] PASS both pages hold the same state after the match (digest, in the lobby): cce284ff / cce284ff
+[main] PASS both pages hold the same state after the match (digest, in the lobby): ca162f79 / ca162f79
 [main] CMD h14 walk -0.124 15.070 3.5
 [main] REPLY h14 ok reached -0.20 14.99
 [main] CMD h15 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Join
@@ -58,10 +58,10 @@ local: script and bundles from the test server http://localhost:44100
 [main] CMD h16 look 1.150 2.580 17.545
 [main] REPLY h16 ok camera at -0.20,1.65,14.99
 [main] CMD h17 pointer 1.150 2.580 17.545
-[main] REPLY h17 ok screen 584,512 of 1169x1024
+[main] REPLY h17 ok screen 585,512 of 1169x1024
 [main] CMD h18 click 1.150 2.580 17.545
-[main] REPLY h18 ok screen 584,512 of 1169x1024
-[main] INFO click Join (leave the lobby): ok screen 584,512 of 1169x1024 at 1.150 2.580 17.545
+[main] REPLY h18 ok screen 585,512 of 1169x1024
+[main] INFO click Join (leave the lobby): ok screen 585,512 of 1169x1024 at 1.150 2.580 17.545
 [main] PASS B leaves the lobby with the Join button: joined false
 [main] INFO B reloads its page while the match runs
 [main] PASS the kit loads from a hand-written bs-snippet and the instance starts:
@@ -76,7 +76,7 @@ local: script and bundles from the test server http://localhost:44100
 [main] bot): on shift
 [main] bot): on shift
 [main] PASS the hub board's text reached Unity (relay op text): HIDDEN ROLE  -  station shift / Shift clock: 894s
-[main] PASS two players in the room: [{"id":2,"name":"Player 2","sid":"rsess_3fb98668-44d1-4eed-a25a-544ed85279ed"},{"id":3,"name":"Main Editor","sid":"rsess_eb61872a-a77a-49e2-a158-8a03caa194ff"}]
+[main] PASS two players in the room: [{"id":2,"name":"Player 2","sid":"rsess_7f672e75-8a44-46aa-a76e-249efbd9cdfb"},{"id":3,"name":"Main Editor","sid":"rsess_5acda540-9613-46dd-bd39-0948bbefd134"}]
 [main] PASS the reloaded page finds the match running and is not on its roster: state 1, slot -1
 [main] CMD h3 place 0 0.05 0
 [main] REPLY h3 ok 0.00 0.05 0.00 camera 0.00 1.65 0.00
@@ -117,7 +117,7 @@ local: script and bundles from the test server http://localhost:44100
 [main] REPLY h13 -3.00 -69.95 4.50 camera -3.00 -68.35 4.50
 [main] PASS an onlooker who reaches the boarding pad is sent back to the bunkroom at once: -3.00 -69.95 4.50 camera -3.00 -68.35 4.50 moves [{"why":"lounge","x":-3,"y":-1.5}]
 [main] PASS the late joiner holds no sealed entry of the match: null
-[main] PASS and in the lobby the reloaded page's digest is A's: f2173741 / f2173741
+[main] PASS and in the lobby the reloaded page's digest is A's: c823d302 / c823d302
 [main] CMD h14 where
 [main] REPLY h14 -8.00 0.05 9.00 camera -8.00 1.65 9.00
 [main] PASS when the match ends the observer comes back up to the hub: -8.00 0.05 9.00 camera -8.00 1.65 9.00 moves [{"why":"lounge","x":-3,"y":-1.5},{"why":"lounge","x":-3,"y":-1.5},{"why":"hub","x":-8,"y":3}] applied {"round":2,"state":0,"alive":false,"inMatch":false,"placedRound":-1,"slot":-1,"head":{"x":-8,"y":1.65,"z":9}}
@@ -132,14 +132,14 @@ local: script and bundles from the test server http://localhost:44100
 [vp-mppmf3e19e8a] 0 of 10 + 3 bot(s) (need 4)
 [vp-mppmf3e19e8a] oin to play.
 [vp-mppmf3e19e8a] PASS the hub board's text reached Unity (relay op text): HIDDEN ROLE  -  station shift / Lobby: 0 of 10 + 3 bot(s) (need 4)
-[vp-mppmf3e19e8a] PASS two players in the room: [{"id":1,"name":"Main Editor","sid":"rsess_65efa04d-6b4c-402e-805d-5dcda7ae13fd"},{"id":2,"name":"Player 2","sid":"rsess_3fb98668-44d1-4eed-a25a-544ed85279ed"}]
+[vp-mppmf3e19e8a] PASS two players in the room: [{"id":1,"name":"Main Editor","sid":"rsess_ec87f44a-6770-4525-82b0-c636f35a27ee"},{"id":2,"name":"Player 2","sid":"rsess_7f672e75-8a44-46aa-a76e-249efbd9cdfb"}]
 [vp-mppmf3e19e8a] INFO A (starts, technician) is Player 2
 [vp-mppmf3e19e8a] CMD h3 walk 0.000 15.020 3.5
-[vp-mppmf3e19e8a] REPLY h3 ok reached 0.00 14.91
+[vp-mppmf3e19e8a] REPLY h3 ok reached 0.00 14.90
 [vp-mppmf3e19e8a] CMD h4 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Join
 [vp-mppmf3e19e8a] REPLY h4 1.150 2.580 17.545
 [vp-mppmf3e19e8a] CMD h5 look 1.150 2.580 17.545
-[vp-mppmf3e19e8a] REPLY h5 ok camera at 0.00,1.60,14.91
+[vp-mppmf3e19e8a] REPLY h5 ok camera at 0.00,1.60,14.90
 [vp-mppmf3e19e8a] CMD h6 pointer 1.150 2.580 17.545
 [vp-mppmf3e19e8a] REPLY h6 ok screen 1280,351 of 2560x702
 [vp-mppmf3e19e8a] CMD h7 click 1.150 2.580 17.545
@@ -149,7 +149,7 @@ local: script and bundles from the test server http://localhost:44100
 [vp-mppmf3e19e8a] CMD h8 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
 [vp-mppmf3e19e8a] REPLY h8 1.150 2.260 17.545
 [vp-mppmf3e19e8a] CMD h9 look 1.150 2.260 17.545
-[vp-mppmf3e19e8a] REPLY h9 ok camera at 0.00,1.60,14.91
+[vp-mppmf3e19e8a] REPLY h9 ok camera at 0.00,1.60,14.90
 [vp-mppmf3e19e8a] CMD h10 pointer 1.150 2.260 17.545
 [vp-mppmf3e19e8a] REPLY h10 ok screen 1280,351 of 2560x702
 [vp-mppmf3e19e8a] CMD h11 click 1.150 2.260 17.545
@@ -163,100 +163,94 @@ local: script and bundles from the test server http://localhost:44100
 [vp-mppmf3e19e8a] REPLY h13 You are a TECHNICIAN
 [vp-mppmf3e19e8a] lock: 900s
 [vp-mppmf3e19e8a]  left):
-[vp-mppmf3e19e8a] ge the dive lamps (Hold) - Tether Room 28 m
-[vp-mppmf3e19e8a] hydrophone gain (Timing) - Sonar Room 49 m
-[vp-mppmf3e19e8a] t the cell clamps (Tap) - Battery Bay 57 m
-[vp-mppmf3e19e8a] the specimen tray (Hold) - Wet Lab 104 m
-[vp-mppmf3e19e8a]  out the lime trays (Tap) - Scrubber Room 113 m
-[vp-mppmf3e19e8a] p Hall
+[vp-mppmf3e19e8a] p loose crates (Tap) - Kelp Store 80 m
+[vp-mppmf3e19e8a] he specimen tray (Hold) - Wet Lab 90 m
+[vp-mppmf3e19e8a] h the harvest bins (Hold) - Kelp Store 95 m
+[vp-mppmf3e19e8a] tank pressure (Timing) - Wet Lab 103 m
+[vp-mppmf3e19e8a] the reserve bottles (Hold) - Scrubber Room 105 m
+[vp-mppmf3e19e8a] her Room
 [vp-mppmf3e19e8a] PASS each player sees only their own role (sealed entry; no role in the public record): technician, public roles [], panel 'You are a TECHNICIAN'
 [vp-mppmf3e19e8a] PASS the other page saw a different role of its own: saboteur: 'You are a SABOTEUR'
-[vp-mppmf3e19e8a] CMD h14 walk 55.500 -7.500 3.5
-[vp-mppmf3e19e8a] REPLY h14 ok reached 55.49 -7.62
-[vp-mppmf3e19e8a] CMD h15 walk 48.500 7.500 3.5
-[vp-mppmf3e19e8a] REPLY h15 ok reached 48.55 7.40
-[vp-mppmf3e19e8a] CMD h16 walk 48.500 10.500 3.5
-[vp-mppmf3e19e8a] REPLY h16 ok reached 48.50 10.39
-[vp-mppmf3e19e8a] CMD h17 walk 39.500 13.500 3.5
-[vp-mppmf3e19e8a] REPLY h17 ok reached 39.61 13.48
-[vp-mppmf3e19e8a] CMD h18 walk 24.500 13.500 3.5
-[vp-mppmf3e19e8a] REPLY h18 ok reached 24.60 13.50
-[vp-mppmf3e19e8a] CMD h19 walk 0.113 4.840 3.5
-[vp-mppmf3e19e8a] REPLY h19 ok reached 0.23 4.88
-[vp-mppmf3e19e8a] CMD h20 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Post
-[vp-mppmf3e19e8a] REPLY h20 0.000 1.110 6.000
-[vp-mppmf3e19e8a] CMD h21 look 0.000 1.110 6.000
-[vp-mppmf3e19e8a] REPLY h21 ok camera at 0.23,1.65,4.88
-[vp-mppmf3e19e8a] CMD h22 pointer 0.000 1.110 6.000
-[vp-mppmf3e19e8a] REPLY h22 ok screen 1280,351 of 2560x702
-[vp-mppmf3e19e8a] CMD h23 click 0.000 1.110 6.000
-[vp-mppmf3e19e8a] REPLY h23 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h14 walk 43.500 20.500 3.5
+[vp-mppmf3e19e8a] REPLY h14 ok reached 43.61 20.51
+[vp-mppmf3e19e8a] CMD h15 walk 40.500 17.500 3.5
+[vp-mppmf3e19e8a] REPLY h15 ok reached 40.59 17.55
+[vp-mppmf3e19e8a] CMD h16 walk 25.500 15.500 3.5
+[vp-mppmf3e19e8a] REPLY h16 ok reached 25.62 15.52
+[vp-mppmf3e19e8a] CMD h17 walk 0.111 4.846 3.5
+[vp-mppmf3e19e8a] REPLY h17 ok reached 0.21 4.89
+[vp-mppmf3e19e8a] CMD h18 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Post
+[vp-mppmf3e19e8a] REPLY h18 0.000 1.110 6.000
+[vp-mppmf3e19e8a] CMD h19 look 0.000 1.110 6.000
+[vp-mppmf3e19e8a] REPLY h19 ok camera at 0.21,1.65,4.89
+[vp-mppmf3e19e8a] CMD h20 pointer 0.000 1.110 6.000
+[vp-mppmf3e19e8a] REPLY h20 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h21 click 0.000 1.110 6.000
+[vp-mppmf3e19e8a] REPLY h21 ok screen 1280,351 of 2560x702
 [vp-mppmf3e19e8a] INFO click the muster post: ok screen 1280,351 of 2560x702 at 0.000 1.110 6.000
-[vp-mppmf3e19e8a] CMD h24 where
-[vp-mppmf3e19e8a] REPLY h24 0.00 0.05 8.80 camera 0.00 1.65 8.80
+[vp-mppmf3e19e8a] CMD h22 where
+[vp-mppmf3e19e8a] REPLY h22 0.00 0.05 8.80 camera 0.00 1.65 8.80
 [vp-mppmf3e19e8a] PASS the muster moves this player to the ring: 2.80 m from the post
 [vp-mppmf3e19e8a] PASS and the other player too (a muster moves both): 2.80 m
-[vp-mppmf3e19e8a] CMD h25 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Board/Pass
-[vp-mppmf3e19e8a] REPLY h25 -0.670 1.840 6.005
-[vp-mppmf3e19e8a] CMD h26 look -0.670 1.840 6.005
-[vp-mppmf3e19e8a] REPLY h26 ok camera at 0.00,1.65,8.80
-[vp-mppmf3e19e8a] CMD h27 pointer -0.670 1.840 6.005
-[vp-mppmf3e19e8a] REPLY h27 ok screen 1280,351 of 2560x702
-[vp-mppmf3e19e8a] CMD h28 click -0.670 1.840 6.005
-[vp-mppmf3e19e8a] REPLY h28 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h23 probe pk1:hidden-role:0 pos Station/Regions/R15/Muster/Board/Pass
+[vp-mppmf3e19e8a] REPLY h23 -0.670 1.840 6.005
+[vp-mppmf3e19e8a] CMD h24 look -0.670 1.840 6.005
+[vp-mppmf3e19e8a] REPLY h24 ok camera at 0.00,1.65,8.80
+[vp-mppmf3e19e8a] CMD h25 pointer -0.670 1.840 6.005
+[vp-mppmf3e19e8a] REPLY h25 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h26 click -0.670 1.840 6.005
+[vp-mppmf3e19e8a] REPLY h26 ok screen 1280,351 of 2560x702
 [vp-mppmf3e19e8a] INFO click Pass: ok screen 1280,351 of 2560x702 at -0.670 1.840 6.005
-[vp-mppmf3e19e8a] CMD h29 where
-[vp-mppmf3e19e8a] REPLY h29 0.23 0.05 4.88 camera 0.23 1.65 4.88
-[vp-mppmf3e19e8a] CMD h30 walk 0.004 15.020 3.5
-[vp-mppmf3e19e8a] REPLY h30 ok reached 0.01 14.91
-[vp-mppmf3e19e8a] CMD h31 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Abort
-[vp-mppmf3e19e8a] REPLY h31 1.150 1.940 17.545
-[vp-mppmf3e19e8a] CMD h32 look 1.150 1.940 17.545
-[vp-mppmf3e19e8a] REPLY h32 ok camera at 0.01,1.65,14.91
-[vp-mppmf3e19e8a] CMD h33 pointer 1.150 1.940 17.545
-[vp-mppmf3e19e8a] REPLY h33 ok screen 1280,351 of 2560x702
-[vp-mppmf3e19e8a] CMD h34 click 1.150 1.940 17.545
-[vp-mppmf3e19e8a] REPLY h34 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h27 where
+[vp-mppmf3e19e8a] REPLY h27 0.21 0.05 4.89 camera 0.21 1.65 4.89
+[vp-mppmf3e19e8a] CMD h28 walk 0.004 15.020 3.5
+[vp-mppmf3e19e8a] REPLY h28 ok reached 0.01 14.90
+[vp-mppmf3e19e8a] CMD h29 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Abort
+[vp-mppmf3e19e8a] REPLY h29 1.150 1.940 17.545
+[vp-mppmf3e19e8a] CMD h30 look 1.150 1.940 17.545
+[vp-mppmf3e19e8a] REPLY h30 ok camera at 0.01,1.65,14.90
+[vp-mppmf3e19e8a] CMD h31 pointer 1.150 1.940 17.545
+[vp-mppmf3e19e8a] REPLY h31 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h32 click 1.150 1.940 17.545
+[vp-mppmf3e19e8a] REPLY h32 ok screen 1280,351 of 2560x702
 [vp-mppmf3e19e8a] INFO click Stop match: ok screen 1280,351 of 2560x702 at 1.150 1.940 17.545
-[vp-mppmf3e19e8a] PASS both pages hold the same state after the match (digest, in the lobby): cce284ff / cce284ff
-[vp-mppmf3e19e8a] CMD h35 walk -0.142 15.090 3.5
-[vp-mppmf3e19e8a] REPLY h35 ok reached -0.24 15.02
-[vp-mppmf3e19e8a] CMD h36 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
-[vp-mppmf3e19e8a] REPLY h36 1.150 2.260 17.545
-[vp-mppmf3e19e8a] CMD h37 look 1.150 2.260 17.545
-[vp-mppmf3e19e8a] REPLY h37 ok camera at -0.24,1.65,15.02
-[vp-mppmf3e19e8a] CMD h38 pointer 1.150 2.260 17.545
-[vp-mppmf3e19e8a] REPLY h38 ok screen 1280,351 of 2560x702
-[vp-mppmf3e19e8a] CMD h39 click 1.150 2.260 17.545
-[vp-mppmf3e19e8a] REPLY h39 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] PASS both pages hold the same state after the match (digest, in the lobby): ca162f79 / ca162f79
+[vp-mppmf3e19e8a] CMD h33 walk -0.142 15.090 3.5
+[vp-mppmf3e19e8a] REPLY h33 ok reached -0.24 15.02
+[vp-mppmf3e19e8a] CMD h34 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Start
+[vp-mppmf3e19e8a] REPLY h34 1.150 2.260 17.545
+[vp-mppmf3e19e8a] CMD h35 look 1.150 2.260 17.545
+[vp-mppmf3e19e8a] REPLY h35 ok camera at -0.24,1.65,15.02
+[vp-mppmf3e19e8a] CMD h36 pointer 1.150 2.260 17.545
+[vp-mppmf3e19e8a] REPLY h36 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h37 click 1.150 2.260 17.545
+[vp-mppmf3e19e8a] REPLY h37 ok screen 1280,351 of 2560x702
 [vp-mppmf3e19e8a] INFO click Start: ok screen 1280,351 of 2560x702 at 1.150 2.260 17.545
 [vp-mppmf3e19e8a] PASS A starts a second match without B: state 1, roster Player 2, Bot 1*, Bot 2*, Bot 3*
-[vp-mppmf3e19e8a] PASS B, back after a reload, is an observer in the lounge: {"hrTest":1,"kind":"back","lounge":true,"r":2,"t0":1795560608.126,"roster":"Player 2,Bot 1,Bot 2,Bot 3"}
+[vp-mppmf3e19e8a] PASS B, back after a reload, is an observer in the lounge: {"hrTest":1,"kind":"back","lounge":true,"r":2,"t0":1795565963.867,"roster":"Player 2,Bot 1,Bot 2,Bot 3"}
 [vp-mppmf3e19e8a] PASS B's reloaded page sees the same match (number, start, roster): 2 Player 2,Bot 1,Bot 2,Bot 3
-[vp-mppmf3e19e8a] CMD h40 where
-[vp-mppmf3e19e8a] REPLY h40 50.40 0.05 16.91 camera 50.40 1.65 16.91
-[vp-mppmf3e19e8a] CMD h41 walk 47.500 14.500 3.5
-[vp-mppmf3e19e8a] REPLY h41 ok reached 47.58 14.56
-[vp-mppmf3e19e8a] CMD h42 walk 32.500 14.500 3.5
-[vp-mppmf3e19e8a] REPLY h42 ok reached 32.59 14.50
-[vp-mppmf3e19e8a] CMD h43 walk 17.500 14.500 3.5
-[vp-mppmf3e19e8a] REPLY h43 ok reached 17.60 14.50
-[vp-mppmf3e19e8a] CMD h44 walk 16.500 13.500 3.5
-[vp-mppmf3e19e8a] REPLY h44 ok reached 16.58 13.58
-[vp-mppmf3e19e8a] CMD h45 walk 4.500 13.500 3.5
-[vp-mppmf3e19e8a] REPLY h45 ok reached 4.61 13.50
-[vp-mppmf3e19e8a] CMD h46 walk 0.169 15.138 3.5
-[vp-mppmf3e19e8a] REPLY h46 ok reached 0.27 15.10
-[vp-mppmf3e19e8a] CMD h47 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Abort
-[vp-mppmf3e19e8a] REPLY h47 1.150 1.940 17.545
-[vp-mppmf3e19e8a] CMD h48 look 1.150 1.940 17.545
-[vp-mppmf3e19e8a] REPLY h48 ok camera at 0.27,1.65,15.10
-[vp-mppmf3e19e8a] CMD h49 pointer 1.150 1.940 17.545
-[vp-mppmf3e19e8a] REPLY h49 ok screen 1280,351 of 2560x702
-[vp-mppmf3e19e8a] CMD h50 click 1.150 1.940 17.545
-[vp-mppmf3e19e8a] REPLY h50 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h38 where
+[vp-mppmf3e19e8a] REPLY h38 54.46 0.05 21.60 camera 54.46 1.65 21.60
+[vp-mppmf3e19e8a] CMD h39 walk 43.500 20.500 3.5
+[vp-mppmf3e19e8a] REPLY h39 ok reached 43.61 20.51
+[vp-mppmf3e19e8a] CMD h40 walk 40.500 17.500 3.5
+[vp-mppmf3e19e8a] REPLY h40 ok reached 40.60 17.56
+[vp-mppmf3e19e8a] CMD h41 walk 25.500 14.500 3.5
+[vp-mppmf3e19e8a] REPLY h41 ok reached 25.61 14.52
+[vp-mppmf3e19e8a] CMD h42 walk 14.500 13.500 3.5
+[vp-mppmf3e19e8a] REPLY h42 ok reached 14.61 13.51
+[vp-mppmf3e19e8a] CMD h43 walk 0.179 15.179 3.5
+[vp-mppmf3e19e8a] REPLY h43 ok reached 0.29 15.17
+[vp-mppmf3e19e8a] CMD h44 probe pk1:hidden-role:0 pos Station/Regions/R15/Hub/Board/Abort
+[vp-mppmf3e19e8a] REPLY h44 1.150 1.940 17.545
+[vp-mppmf3e19e8a] CMD h45 look 1.150 1.940 17.545
+[vp-mppmf3e19e8a] REPLY h45 ok camera at 0.29,1.65,15.17
+[vp-mppmf3e19e8a] CMD h46 pointer 1.150 1.940 17.545
+[vp-mppmf3e19e8a] REPLY h46 ok screen 1280,351 of 2560x702
+[vp-mppmf3e19e8a] CMD h47 click 1.150 1.940 17.545
+[vp-mppmf3e19e8a] REPLY h47 ok screen 1280,351 of 2560x702
 [vp-mppmf3e19e8a] INFO click Stop match: ok screen 1280,351 of 2560x702 at 1.150 1.940 17.545
-[vp-mppmf3e19e8a] PASS B's reloaded page and A's hold the same state in the lobby (digest): f2173741 / f2173741
+[vp-mppmf3e19e8a] PASS B's reloaded page and A's hold the same state in the lobby (digest): c823d302 / c823d302
 [vp-mppmf3e19e8a] INFO page result 14 passed, 0 failed
 [vp-mppmf3e19e8a] DONE
 served: /web/pk-hidden-role.js x3, /web/playtest/hidden-role-playtest.js x3, HEAD /kits/windows/hidden-role x3

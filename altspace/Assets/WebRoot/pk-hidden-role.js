@@ -346,6 +346,22 @@
   function networkId(slug, inst, objKey) {
     return `${TAG}/${slug}/${inst}/${objKey}`;
   }
+  function attachId(slug, inst, objKey) {
+    const ok = (s) => s.length <= 53 && /^[A-Za-z0-9_\-:@]+$/.test(s);
+    const plain = `${TAG}:${slug}:${inst}:${objKey}`;
+    if (ok(plain)) return plain;
+    const short = `${TAG}:${slug}:${inst}:${fnv(objKey)}`;
+    if (ok(short)) return short;
+    return `${TAG}:${fnv(`${slug}:${inst}:${objKey}`)}${fnv(`${objKey}:${inst}:${slug}`)}`;
+  }
+  function fnv(text) {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h.toString(16).padStart(8, "0");
+  }
   function statePrefix(slug, inst) {
     return `${TAG}.${slug}.${inst}`;
   }
@@ -1279,6 +1295,21 @@
       entry.n = stored[0];
       return true;
     }
+    /**
+     * Every per-player copy that holds a value (it was serialised or received at least once), in session and id order,
+     * with its sequence number and fields: what `digest()` and `version()` add for per-player behaviours.
+     */
+    snapshot() {
+      const out = [];
+      for (const sid of [...this.owned.keys()].sort()) {
+        const mine = this.owned.get(sid);
+        for (const id of [...mine.keys()].sort()) {
+          const entry = mine.get(id);
+          if (entry.n > 0 && entry.fields.length) out.push({ sid, id, n: entry.n, fields: readFields(entry.behaviour, entry.fields) });
+        }
+      }
+      return out;
+    }
     behaviour(sid, id) {
       return this.owned.get(sid)?.get(id)?.behaviour ?? null;
     }
@@ -1466,6 +1497,7 @@
       const o = objects[key];
       normalObjects[key] = { path: o.path, sync: o.sync === "transform" ? "transform" : "none", grab: o.grab === true, click: o.click === true, seat: o.seat === true };
       if (o.active === false) normalObjects[key].active = false;
+      if (o.attach === true) normalObjects[key].attach = true;
     }
     return {
       schema: 1,
@@ -1735,6 +1767,23 @@
       const base = own ?? (this.last && this.last.e === epoch ? this.last.m : {});
       return JSON.parse(JSON.stringify(base));
     }
+    /** True when the current referee's user state holds a table of this epoch (an empty one counts). */
+    published() {
+      const ref = this.referee.current();
+      return !!ref && this.parse(this.presence.extra(ref.sid, this.name), this.referee.epoch) !== null;
+    }
+    /**
+     * The referee publishes the table it carries (its predecessor's last one, or an empty one in a new epoch) as soon as
+     * its term starts, before any entry changes: a page that starts in between would otherwise read no table at all, its
+     * saved draw could not come back, and it would take everything numbered before it came as new. True when it wrote.
+     */
+    ensurePublished() {
+      if (!this.referee.isMe()) return false;
+      if (this.parse(this.presence.extra(this.presence.localSid, this.name), this.referee.epoch) !== null) return false;
+      this.lastText = "";
+      this.write(this.working());
+      return true;
+    }
     /** Publishes the table in the local player's user state (only the referee calls this). */
     write(table) {
       const value = { e: this.referee.epoch, m: table };
@@ -1770,6 +1819,10 @@
       __publicField(this, "acks");
       __publicField(this, "reviewing", false);
       __publicField(this, "reviewAgain", false);
+      __publicField(this, "sealing", false);
+      /** Referee: since when a sender's first due request (`<sid>` newline `<n>`) has waited for its write mark. */
+      __publicField(this, "heldSince", /* @__PURE__ */ new Map());
+      __publicField(this, "holding", false);
       /** False until behaviours have started: the referee runs nothing before then. */
       __publicField(this, "started", false);
       __publicField(this, "run", 0);
@@ -1783,6 +1836,9 @@
       this.presence.onExtra(() => this.review());
       this.presence.on(() => this.review());
       this.referee.on(() => this.review());
+      this.core.onState(() => {
+        if (this.holding) Promise.resolve().then(() => this.review());
+      });
     }
     send(behaviour, name, args) {
       const address = this.routes.address(behaviour);
@@ -1798,9 +1854,28 @@
         this.routes.refused(behaviour, "value_too_large", name);
         return 0;
       }
-      this.queue.push({ n, behaviour, record });
-      this.review();
+      this.queue.push({ n, behaviour, record, sealed: false });
+      if (!this.sealing) {
+        this.sealing = true;
+        Promise.resolve().then(() => this.seal());
+      }
       return n;
+    }
+    /** After the turn that sent them: the turn's writes go out first, then the requests, marked with what they follow. */
+    seal() {
+      this.sealing = false;
+      if (this.core.disposed) return;
+      this.core.guard("command write mark", () => this.routes.flush?.());
+      const marks = this.routes.marks?.() ?? [];
+      for (const pending of this.queue) {
+        if (pending.sealed) continue;
+        pending.sealed = true;
+        if (marks.length) {
+          const [n, id, sid, name, args] = pending.record;
+          pending.record = [n, id, sid, name, args, marks];
+        }
+      }
+      this.review();
     }
     /**
      * Publishes, runs and acknowledges whatever is due. Also called about once a second. Not re-entrant: a command
@@ -1837,6 +1912,7 @@
         const batch = [];
         let bytes = 2;
         for (const pending of this.queue) {
+          if (!pending.sealed) break;
           const size = utf8Length(asciiJson(pending.record)) + 1;
           if (batch.length >= MAX_BATCH || batch.length && bytes + size > MAX_BATCH_BYTES) break;
           batch.push(pending.record);
@@ -1844,13 +1920,15 @@
         }
         const first = Array.isArray(published) && Array.isArray(published[0]) ? published[0][0] : null;
         const last = Array.isArray(published) && Array.isArray(published[published.length - 1]) ? published[published.length - 1][0] : null;
-        if (first !== batch[0][0] || last !== batch[batch.length - 1][0]) this.presence.setExtra("q", batch);
+        if (batch.length && (first !== batch[0][0] || last !== batch[batch.length - 1][0])) this.presence.setExtra("q", batch);
       } else if (published !== void 0) this.presence.setExtra("q", void 0);
       if (this.referee.isMe()) this.officiate();
     }
     officiate() {
       const table = this.acks.working();
       let changed = false;
+      const now = this.core.platform.clock.now();
+      let holding = false;
       for (const sid of Object.keys(table)) {
         if (!this.presence.has(sid)) {
           delete table[sid];
@@ -1865,6 +1943,18 @@
           const acked = table[who.sid] ?? 0;
           if (q[0] <= acked) continue;
           if (acked > 0 && q[0] !== acked + 1) break;
+          const key = who.sid + "\n" + q[0];
+          if (who.sid !== this.core.me.sid && !this.marked(q[5])) {
+            const since = this.heldSince.get(key) ?? now;
+            this.heldSince.set(key, since);
+            if (now - since < this.core.options.eventHoldMs) {
+              holding = true;
+              if (since === now) this.core.scheduler.after(this.core.options.eventHoldMs + 1, () => this.review());
+              break;
+            }
+            this.core.log("info", `a command from session ${who.sid} ran without the state it was sent after (it had not arrived in ${this.core.options.eventHoldMs} ms)`);
+          }
+          this.heldSince.delete(key);
           table[who.sid] = q[0];
           this.acks.write(table);
           changed = false;
@@ -1875,6 +1965,17 @@
         }
       }
       if (changed) this.acks.write(table);
+      this.holding = holding;
+      if (!holding) this.heldSince.clear();
+    }
+    /** Has the referee seen every claim and write in a request's mark? (No mark, or a malformed one: nothing to wait for.) */
+    marked(mark) {
+      if (!Array.isArray(mark) || !this.routes.seen) return true;
+      for (const m of mark.slice(0, 8)) {
+        if (!Array.isArray(m) || typeof m[0] !== "string" || typeof m[1] !== "number" || typeof m[2] !== "number") continue;
+        if (!this.routes.seen(m[0], m[1], m[2])) return false;
+      }
+      return true;
     }
     table() {
       return this.acks.read();
@@ -2156,6 +2257,13 @@
       const text = args.map((a) => typeof a === "number" ? relayNumber(a) : typeof a === "boolean" ? a ? "1" : "0" : String(a));
       if (property !== void 0) this.value(name, target, `op.${name}.${property}`, text);
       else this.event(name, target, text);
+    }
+    /**
+     * A request the graph answers with a graph event (pkHead), sent at once and with no target (as the clock): `args`
+     * are sent as they are (ids and session ids, which need no encoding).
+     */
+    request(op, args) {
+      this.platform.relaySend(relayPayload(this.slug, this.inst, [relayRecord(op, 0, args.map(encodeRelayArg))]));
     }
     /** The clock is not batched: its answer is timed from the moment it is sent. */
     requestClock() {
@@ -2583,6 +2691,13 @@
     /** The same as IsReferee, under the name upstream code uses. */
     get IsMaster() {
       return this.host.isReferee();
+    }
+    /**
+     * Where the app places `player`'s head: the SDK's Get User State through the relay op `pkHead`. Null when the app does
+     * not know (yet), on a kit without the op, or after `seconds`. A referee can check another player's claim with it.
+     */
+    HeadOf(player, seconds2 = 2) {
+      return this.host.headOf ? this.host.headOf(player, seconds2) : Promise.resolve(null);
     }
     /** The referee, or null while there is none. */
     get Master() {
@@ -3489,6 +3604,7 @@ ${index}`));
     }
   };
   var DRAW_KEEP_MS = 12e4;
+  var CARRY_HOLD_MS = 500;
   var ANSWERED_MAX = 1024;
   function parseDrawEntry(e) {
     if (!Array.isArray(e) || typeof e[0] !== "string" || typeof e[1] !== "string" || typeof e[2] !== "string") return null;
@@ -3549,6 +3665,7 @@ ${index}`));
       /** Told when a player's draw changes state. */
       __publicField(this, "onDrawChanged", () => {
       });
+      __publicField(this, "carryHoldUntil", -Infinity);
       __publicField(this, "warnedDeals", /* @__PURE__ */ new Set());
       this.core = core;
       this.presence = presence;
@@ -3696,6 +3813,7 @@ ${index}`));
       this.collect();
       const entry = table[sid];
       if (!entry) return null;
+      if (this.baseline === null) return { entry, verdict: "pending" };
       const key = `${entry[5]}
 ${entry[0]}`;
       let pin = this.pins.get(key);
@@ -3735,6 +3853,7 @@ ${entry[0]}`;
       if (this.baseline === null && epoch !== 0) {
         const ref = this.referee.current();
         if (!ref) return;
+        if (!this.numbers.published()) return;
         this.baseline = new Set(Object.keys(table).map((sid) => `${table[sid][5]}
 ${table[sid][0]}`));
       }
@@ -3821,7 +3940,20 @@ ${status.state}`;
         this.core.guard("draw handler", () => this.onDrawChanged(who.sid, label, status));
       }
     }
+    /**
+     * The referee publishes the number table it carries, if it has not this term. The runtime does this by itself as
+     * soon as a referee's term starts (a game need not call it; it is harmless to): a page that starts in between reads
+     * the whole table, so its saved draw comes back and what was numbered before it came is taken as found.
+     */
+    publishDrawTable() {
+      if (this.core.disposed || !this.referee.isMe()) return;
+      if (!this.numbers.ensurePublished()) return;
+      this.carryHoldUntil = this.core.platform.clock.now() + CARRY_HOLD_MS;
+      this.core.scheduler.after(CARRY_HOLD_MS + 1, () => this.review());
+    }
     officiate() {
+      this.publishDrawTable();
+      if (this.core.platform.clock.now() < this.carryHoldUntil) return;
       const table = this.numbers.working();
       let changed = false;
       const now = this.nowSeconds();
@@ -3957,7 +4089,7 @@ ${entry[0]}`;
       const seen = this.dealSeen.get(label);
       if (deal.r !== void 0) return seen && sha256Text(deal.r) === seen.h ? "revealed" : "invalid";
       if (deal.p === 0) return "committing";
-      return this.contributions(deal) ? "ready" : "revealing";
+      return Array.isArray(this.contributions(deal)) ? "ready" : "revealing";
     }
     /**
      * The referee's deal, once every listed player still present has revealed a contribution (a listed player who
@@ -3967,7 +4099,7 @@ ${entry[0]}`;
       const deal = this.currentDeal();
       if (!this.referee.isMe() || !deal || deal.l !== label || !this.dealSeed || this.dealSeed.label !== label) return null;
       const parts = this.contributions(deal);
-      return parts ? new Draw(dealSeedOf(this.dealSeed.seed, label, parts)) : null;
+      return Array.isArray(parts) ? new Draw(dealSeedOf(this.dealSeed.seed, label, parts)) : null;
     }
     /** The referee publishes its seed (after the hand), so that everyone can check the deal. */
     revealDeal(label) {
@@ -3982,31 +4114,39 @@ ${entry[0]}`;
     }
     /**
      * After revealDeal: the deal, recomputed here from the referee's seed and the contributions this client saw; null if it
-     * does not check out. A deal with no contributor but the referee is never fair (the referee could have searched seeds
-     * before committing): null, and a warning. With `expected` (the session ids the game says must contribute: the seated
-     * players), the referee's list must be exactly those, or the deal is null too (a referee that leaves players out of
-     * the list, or lists only accomplices).
+     * does not check out, or cannot be checked here (`checkDeal` says which). A deal with no contributor but the referee is
+     * never fair (the referee could have searched seeds before committing): null, and a warning. With `expected` (the
+     * session ids the game says must contribute: the seated players), the referee's list must be exactly those, or the deal
+     * is null too (a referee that leaves players out of the list, or lists only accomplices). A page that did not see the
+     * contribution of a listed player who has since left gets null ("unknown"), never a deal computed without that part.
      */
     verifyDeal(label, expected) {
+      return this.checkDeal(label, expected).draw;
+    }
+    /** As verifyDeal, saying why: "ok" (with the draw), "pending", "solo", "unknown" or "failed" (see DealCheck). */
+    checkDeal(label, expected) {
       const deal = this.currentDeal();
-      if (!deal || deal.l !== label || deal.r === void 0) return null;
+      if (!deal || deal.l !== label || deal.r === void 0) return { state: "pending", draw: null, why: "no revealed deal under that label" };
       const ref = this.referee.current();
       if (!deal.s.some((sid) => sid !== ref?.sid)) {
         this.warnDeal(label, "lists no contributor but the referee: its outcome was the referee's own choice");
-        return null;
+        return { state: "solo", draw: null, why: "no contributor but the referee: it cannot be checked" };
       }
       if (expected) {
         const want = [...new Set(expected)].sort();
         const listed = [...new Set(deal.s)].sort();
         if (want.length !== listed.length || want.some((sid, i) => sid !== listed[i])) {
           this.warnDeal(label, `lists ${listed.length} contributors, not the ${want.length} the game expects`);
-          return null;
+          return { state: "failed", draw: null, why: "the contributors are not the ones expected" };
         }
       }
       const seen = this.dealSeen.get(label);
-      if (!seen || sha256Text(deal.r) !== seen.h) return null;
+      if (!seen || seen.withSeed) return { state: "unknown", draw: null, why: "this page first saw the deal with its seed already revealed" };
+      if (sha256Text(deal.r) !== seen.h) return { state: "failed", draw: null, why: "the revealed seed is not the committed one" };
       const parts = this.contributions(deal);
-      return parts ? new Draw(dealSeedOf(deal.r, label, parts)) : null;
+      if (parts === "unknown") return { state: "unknown", draw: null, why: "a contributor left before this page saw its part" };
+      if (parts === "wait") return { state: "pending", draw: null, why: "a contribution is still missing" };
+      return { state: "ok", draw: new Draw(dealSeedOf(deal.r, label, parts)), why: "" };
     }
     warnDeal(label, why) {
       if (this.warnedDeals.has(label)) return;
@@ -4017,16 +4157,22 @@ ${entry[0]}`;
       const ref = this.referee.current();
       return ref ? parseDeal(this.presence.extra(ref.sid, "dl")) : null;
     }
-    /** Every listed contribution, revealed and matching its commitment ("-" for a listed player who left); null while one is missing. */
+    /**
+     * Every listed contribution, revealed and matching its commitment ("-" for a listed player who left without revealing
+     * one); "wait" while one may still come; "unknown" when a listed player has left and this page cannot tell whether
+     * they revealed (it never saw them while following the deal, and did not follow it from its start).
+     */
     contributions(deal) {
       const seen = this.dealSeen.get(deal.l);
-      if (!seen) return null;
+      if (!seen) return "wait";
       const out = [];
       for (const sid of deal.s) {
         const part = seen.parts.get(sid);
         if (part && part.c !== void 0) out.push(part.c);
-        else if (!this.presence.has(sid) && (!part || deal.p === 1)) out.push("-");
-        else return null;
+        else if (this.presence.has(sid)) return "wait";
+        else if (!seen.watched.has(sid) && !seen.fromStart) return "unknown";
+        else if (!part || deal.p === 1) out.push("-");
+        else return "wait";
       }
       return out;
     }
@@ -4037,11 +4183,12 @@ ${entry[0]}`;
       if (!ref || !deal) return;
       let seen = this.dealSeen.get(deal.l);
       if (!seen || seen.refSid !== ref.sid) {
-        seen = { h: deal.h, refSid: ref.sid, parts: /* @__PURE__ */ new Map() };
+        seen = { h: deal.h, refSid: ref.sid, parts: /* @__PURE__ */ new Map(), fromStart: deal.p === 0 && deal.r === void 0, withSeed: deal.r !== void 0, watched: /* @__PURE__ */ new Set() };
         this.dealSeen.set(deal.l, seen);
         while (this.dealSeen.size > 8) this.dealSeen.delete(this.dealSeen.keys().next().value);
       }
       for (const sid of deal.s) {
+        if (this.presence.has(sid)) seen.watched.add(sid);
         const part = parseContribution(this.presence.extra(sid, "dc"));
         if (!part || part.l !== deal.l) continue;
         const known = seen.parts.get(sid);
@@ -4384,7 +4531,11 @@ ${label}`)));
           lastContinuousAt: -Infinity,
           ownerView: null,
           warnedNotOwner: false,
-          onApplied: null
+          onApplied: null,
+          ownN: 0,
+          ownAt: 0,
+          echoN: 0,
+          claimAt: 0
         };
         this.slots.set(slotId, slot);
       } else if (mode === "continuous" || slot.mode === "none" && mode !== "none") slot.mode = mode;
@@ -4471,6 +4622,7 @@ ${label}`)));
         }
       });
       slot.pending = { g, sid, timer };
+      slot.claimAt = this.core.platform.clock.now();
       this.stats.claims++;
       this.core.set(`o.${slot.id}`, asciiJson(record));
       this.noteOwner(slot);
@@ -4615,6 +4767,26 @@ ${label}`)));
         else this.revert(slot);
       }
     }
+    /**
+     * The local player's ownership claims and writes the room has not echoed yet (made in the last `withinMs`): what a
+     * command sent now must not overtake (commands.ts). Each is [slot id, claim generation or 0, write sequence or 0].
+     */
+    unechoedMarks(withinMs, max = 8) {
+      const now = this.core.platform.clock.now();
+      const out = [];
+      for (const slot of this.slots.values()) {
+        const g = slot.pending && slot.pending.sid === this.me && now - slot.claimAt <= withinMs ? slot.pending.g : 0;
+        const n = slot.ownN > slot.echoN && now - slot.ownAt <= withinMs ? slot.ownN : 0;
+        if (g || n) out.push([slot.id, g, n]);
+      }
+      return out.slice(-max);
+    }
+    /** Has this client seen a claim of generation `g` (or a later one) and a write numbered `n` (or later) of a slot? */
+    hasSeen(id, g, n) {
+      const slot = this.slots.get(id);
+      if (!slot) return true;
+      return slot.topG >= g && slot.seenN >= n;
+    }
     /** Serialises one slot now (used when an event must follow its state). Returns the marker of what it holds. */
     flushOne(slot) {
       if (slot.dirty && this.started && this.isOwner(slot)) {
@@ -4635,6 +4807,8 @@ ${label}`)));
       for (const [key, value] of encoded.writes) this.core.set(key, value);
       slot.chunks = encoded.chunks;
       slot.applied = { g, n, w: this.me };
+      slot.ownN = n;
+      slot.ownAt = this.core.platform.clock.now();
       slot.lastSent = canonicalJson(d);
       if (slot.grouped) for (const member of slot.members) member.lastPart = canonicalJson(d[member.id] ?? null);
       const kept = { d, marker: slot.applied };
@@ -4706,6 +4880,7 @@ ${label}`)));
       if (decoded.kind !== "value") return;
       const x = decoded.record;
       if (x.n > slot.seenN) slot.seenN = x.n;
+      if (x.w === this.me && x.n > slot.echoN) slot.echoN = x.n;
       slot.chunks = decoded.chunks;
       if (x.e !== this.referee.epoch) return;
       const a = slot.applied;
@@ -4749,6 +4924,8 @@ ${label}`)));
   };
 
   // portkit/src/instance.ts
+  var HEAD_OP = "pkHead";
+  var HEAD_EVENT = "pkHead";
   var OBJECT_EVENTS = [
     "click",
     "grab",
@@ -4826,6 +5003,8 @@ ${label}`)));
       __publicField(this, "inputView");
       /** The page-wide object every instance of this game shares (GameRuntime.shared). */
       __publicField(this, "shared");
+      __publicField(this, "headRequests", /* @__PURE__ */ new Map());
+      __publicField(this, "nextHeadRequest", 1);
       this.shared = shared;
       this.platform = platform;
       this.game = game2;
@@ -4858,7 +5037,10 @@ ${label}`)));
         address: (behaviour) => this.addresses.get(behaviour) ?? null,
         invoke: (behaviour, name, args, fromSid) => this.events.invoke(behaviour, name, args, fromSid),
         acknowledged: (behaviour, number) => behaviour.OnCommandAcknowledged(number),
-        refused: (behaviour, code, name) => this.refuse(behaviour, { kind: "event", code, key: name, final: true })
+        refused: (behaviour, code, name) => this.refuse(behaviour, { kind: "event", code, key: name, final: true }),
+        flush: () => this.sync.flushDirty(),
+        marks: () => this.sync.unechoedMarks(this.core.options.eventHoldMs * 2),
+        seen: (id, g, n) => this.sync.hasSeen(id, g, n)
       });
       this.perUser = new PerUser(this.core, this.storage, {
         restored: (player) => this.each("OnPlayerRestored", (b) => b.OnPlayerRestored(player)),
@@ -4908,7 +5090,11 @@ ${label}`)));
         get IsVR() {
           return owner.vr;
         },
-        InReach: (point, metres) => !(metres > 0) || this.nearestDistance(point) <= metres,
+        InReach: (point, metres, whenUnknown = true) => {
+          if (!(metres > 0)) return true;
+          const distance = this.nearestDistance(point);
+          return distance === null ? whenUnknown : distance <= metres;
+        },
         TeleportTo: (position, yDegrees, stopMovement = true) => {
           this.moved(position);
           platform.teleport(position, yDegrees, stopMovement);
@@ -5020,7 +5206,9 @@ ${label}`)));
           objects: keys.map((key) => {
             const o = bindings.objects[key];
             const synced = o.sync === "transform" || o.seat;
-            return { key, path: o.path, networkId: synced ? networkId(core.slug, core.inst, key) : "", attachNetworkId: networkId(core.slug, core.inst, key), sync: o.sync, grab: o.grab, click: o.click, seat: o.seat };
+            if (synced && o.attach) core.log("warn", `kit object '${key}' is both synced and attachable: it keeps its synced id, and other players may not see it attached`);
+            const attach = attachId(core.slug, core.inst, key);
+            return { key, path: o.path, networkId: synced ? networkId(core.slug, core.inst, key) : o.attach ? attach : "", attachNetworkId: attach, attach: o.attach === true, sync: o.sync, grab: o.grab, click: o.click, seat: o.seat };
           })
         };
         try {
@@ -5111,7 +5299,7 @@ ${label}`)));
       this.scheduler.start(() => this.tick());
       this.tick();
       let extra = {};
-      if (this.game.debug) core.guard("debug hooks", () => extra = this.game.debug(this));
+      if (this.game.debug && this.platform.isTestPage?.() === true) core.guard("debug hooks", () => extra = this.game.debug(this));
       this.platform.expose(relayKey(core.slug, core.inst), {
         ...extra,
         digest: () => this.digest(),
@@ -5485,16 +5673,18 @@ ${label}`)));
       const own = this.reachOverride.get(behaviour);
       const reach = own !== void 0 ? own : eventReach !== void 0 ? eventReach : classReach > 0 ? classReach : this.game.interactReach ?? 0;
       if (!(reach > 0)) return true;
+      const unknown = this.game.reachWhenUnknown !== false;
       const transform = behaviour.gameObject.transform;
       const point = detail.point ?? (transform.known ? transform.position : null);
-      if (!point) return true;
-      return this.nearestDistance(point) <= reach;
+      if (!point) return unknown;
+      const distance = this.nearestDistance(point);
+      return distance === null ? unknown : distance <= reach;
     }
-    /** Metres from `point` to the nearest of the local head and hands; 0 when no pose or position is known. */
+    /** Metres from `point` to the nearest of the local head and hands; null when no pose or position is known. */
     nearestDistance(point) {
       const poses = this.poses;
       const from = poses ? [poses.head.position, poses.leftHand.position, poses.rightHand.position] : this.position ? [this.position] : [];
-      if (!from.length) return 0;
+      if (!from.length) return null;
       let nearest = Infinity;
       for (const p of from) nearest = Math.min(nearest, Vector3.Distance(p, point));
       return nearest;
@@ -5550,8 +5740,40 @@ ${label}`)));
       if (!list) this.graphHandlers.set(name, list = []);
       list.push({ behaviour, method });
     }
+    /**
+     * Where the app places a player's head (relay op `pkHead`: the SDK's Get User State, which reads the user's Head
+     * transform). Resolves null when the app does not know the player or has no body for them yet (it answers 0 0 0), when
+     * the kit's relay graph has no `pkHead` op (a kit built before it), or after `seconds`. Unlike a position a page
+     * publishes about itself, the app's placing of another player's avatar is not that player's word (found by treasure
+     * hunt, whose referee checks a find's reach with it). The continuation runs after the reply's turn, like any promise.
+     */
+    headOf(player, seconds2 = 2) {
+      if (!player || this.core.disposed) return Promise.resolve(null);
+      const id = String(this.nextHeadRequest++);
+      return new Promise((resolve) => {
+        const timer = this.scheduler.after(Math.max(0, seconds2) * 1e3, () => {
+          this.headRequests.delete(id);
+          resolve(null);
+        });
+        this.headRequests.set(id, { resolve, timer });
+        this.host.request(HEAD_OP, [id, player.sid]);
+      });
+    }
+    onHeadReply(args) {
+      const request = this.headRequests.get(args[0] ?? "");
+      if (!request) return;
+      this.headRequests.delete(args[0]);
+      this.scheduler.cancel(request.timer);
+      const n = args.slice(1, 4).map((v) => typeof v === "string" && v.trim() !== "" ? Number(v) : NaN);
+      const known = n.length === 3 && n.every((v) => Number.isFinite(v)) && !(n[0] === 0 && n[1] === 0 && n[2] === 0);
+      request.resolve(known ? new Vector3(n[0], n[1], n[2]) : null);
+    }
     onGraphEvent(name, args) {
       if (this.core.disposed) return;
+      if (name === HEAD_EVENT) {
+        this.onHeadReply(args);
+        return;
+      }
       if (!this.started) {
         if (this.earlyGraphEvents.length < MAX_EARLY_EVENTS) this.earlyGraphEvents.push({ name, args });
         return;
@@ -5686,7 +5908,13 @@ ${label}`)));
     }
     /** A short hash of every synced field: equal on clients that agree. */
     digest() {
-      return fnv1a(this.sync.snapshotText());
+      var _a;
+      const perPlayer = this.perUser.snapshot();
+      const text = this.sync.snapshotText();
+      if (!perPlayer.length) return fnv1a(text);
+      const players = {};
+      for (const copy of perPlayer) (players[_a = copy.sid] ?? (players[_a] = {}))[copy.id] = copy.fields;
+      return fnv1a(text + "\n" + canonicalJson(players));
     }
     /**
      * Which writes this client's synced state is made of: "<writes>:<hash>", where writes is the sum of the sequence
@@ -5702,6 +5930,10 @@ ${label}`)));
         if (!marker) continue;
         writes += marker.n;
         parts.push(`${id}:${marker.g}.${marker.n}.${marker.w}`);
+      }
+      for (const copy of this.perUser.snapshot()) {
+        writes += copy.n;
+        parts.push(`${copy.sid}/${copy.id}:${copy.n}`);
       }
       return `${writes}:${fnv1a(parts.join("|"))}`;
     }
@@ -11662,8 +11894,11 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
      */
     expose(key, hooks) {
       const registry = this.registry();
-      if (hooks && this.env.win.__pk1_debug === true) registry.debug[key] = hooks;
+      if (hooks && this.isTestPage()) registry.debug[key] = hooks;
       else delete registry.debug[key];
+    }
+    isTestPage() {
+      return this.env.win.__pk1_debug === true;
     }
     onRelay(key, handlers) {
       const registry = this.registry();
@@ -12232,7 +12467,7 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
             );
           }
           if (object.seat) seat = await go.AddComponent(new BS.Seat({}));
-          objects.set(object.key, new BsHostObject(this, object.key, object.path, go, synced, seat, object.networkId, object.attachNetworkId ?? ""));
+          objects.set(object.key, new BsHostObject(this, object.key, object.path, go, synced, seat, object.networkId, object.attachNetworkId ?? "", object.attach === true));
         } catch (error) {
           this.log("warn", `kit object ${object.key} (${object.path}): ${describe(error)}`);
           missing.push(object.key);
@@ -12446,7 +12681,7 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
     }
   };
   var BsHostObject = class {
-    constructor(platform, key, path, go, synced, seat, networkId2 = "", attachNetworkId = "") {
+    constructor(platform, key, path, go, synced, seat, networkId2 = "", attachNetworkId = "", attachable = false) {
       __publicField(this, "key");
       __publicField(this, "path");
       __publicField(this, "platform");
@@ -12457,6 +12692,7 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
       __publicField(this, "watching", false);
       __publicField(this, "attachNetworkId");
       __publicField(this, "hasNetworkId");
+      __publicField(this, "attachable");
       __publicField(this, "attached", null);
       this.platform = platform;
       this.key = key;
@@ -12466,6 +12702,7 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
       this.seat = seat;
       this.hasNetworkId = networkId2 !== "";
       this.attachNetworkId = attachNetworkId;
+      this.attachable = attachable;
     }
     on(kind, handler) {
       const name = HOST_EVENTS[kind];
@@ -12571,6 +12808,9 @@ Role revealed: ${ROLE_NAMES[an[2]].toLowerCase()}.` : "Vote result: the vote cle
       const uid = this.platform.local().uid;
       void (async () => {
         try {
+          if (autoSync && !this.attachable) {
+            this.platform.log("warn", `${this.key}: attached with autoSync but not marked attachable in the bindings (KitStage.Attachable): other players will not see the attachment`);
+          }
           if (autoSync && !this.hasNetworkId && this.attachNetworkId) {
             await this.go.SetNetworkId(this.attachNetworkId);
             this.hasNetworkId = true;

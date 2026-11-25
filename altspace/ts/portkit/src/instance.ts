@@ -17,7 +17,7 @@ import { Commands } from "./commands.ts";
 import { Core, DEFAULT_OPTIONS, type RuntimeOptions } from "./core.ts";
 import { NetEvents } from "./events.ts";
 import { ClockSync, RelayHost, type HostActions } from "./host.ts";
-import { holderName, networkId, relayKey, storagePrefix } from "./names.ts";
+import { attachId, holderName, networkId, relayKey, storagePrefix } from "./names.ts";
 import { Networking, type NetHost, type StartKind } from "./networking.ts";
 import { Persistence } from "./persistence.ts";
 import { PerUser } from "./peruser.ts";
@@ -43,8 +43,12 @@ import type {
   Platform,
   SnippetElement,
 } from "./types.ts";
-import { deferred, fnv1a, isRecord } from "./util.ts";
+import { canonicalJson, deferred, fnv1a, isRecord } from "./util.ts";
 import { decodeValue, Vector2, Vector3 } from "./values.ts";
+
+/** The relay op that asks the app where a player's head is, and the graph event that answers (README op table). */
+const HEAD_OP = "pkHead";
+const HEAD_EVENT = "pkHead";
 
 export interface GameDefinition {
   /** The snippet slug: lower-case letters, digits and hyphens. */
@@ -56,6 +60,11 @@ export interface GameDefinition {
   referee?: CandidateRule;
   /** Default reach in metres for clicks that call Interact(); 0 or absent: any distance. */
   interactReach?: number;
+  /**
+   * Whether a click with a reach counts while the page knows no position for the local player yet (no pose, no
+   * teleport, no answer to the start-up head reading). Default true (as before); false fails closed.
+   */
+  reachWhenUnknown?: boolean;
   /** A refused write that belongs to no single behaviour (a protected value, the referee's own records). */
   onWriteRefused?: (refusal: WriteRefusal) => void;
   /**
@@ -192,6 +201,9 @@ export class GameInstance implements NetHost {
       invoke: (behaviour, name, args, fromSid) => this.events.invoke(behaviour, name, args, fromSid),
       acknowledged: (behaviour, number) => behaviour.OnCommandAcknowledged(number),
       refused: (behaviour, code, name) => this.refuse(behaviour, { kind: "event", code, key: name, final: true }),
+      flush: () => this.sync.flushDirty(),
+      marks: () => this.sync.unechoedMarks(this.core.options.eventHoldMs * 2),
+      seen: (id, g, n) => this.sync.hasSeen(id, g, n),
     });
     this.perUser = new PerUser(this.core, this.storage, {
       restored: (player) => this.each("OnPlayerRestored", (b) => b.OnPlayerRestored(player)),
@@ -226,7 +238,11 @@ export class GameInstance implements NetHost {
       Haptic: (side, strength, seconds) => platform.haptic(side, strength, seconds),
       get LastClickSide() { return owner.lastClickSide; },
       get IsVR() { return owner.vr; },
-      InReach: (point, metres) => !(metres > 0) || this.nearestDistance(point) <= metres,
+      InReach: (point, metres, whenUnknown = true) => {
+        if (!(metres > 0)) return true;
+        const distance = this.nearestDistance(point);
+        return distance === null ? whenUnknown : distance <= metres;
+      },
       TeleportTo: (position, yDegrees, stopMovement = true) => {
         this.moved(position);
         platform.teleport(position, yDegrees, stopMovement);
@@ -347,7 +363,12 @@ export class GameInstance implements NetHost {
         objects: keys.map((key) => {
           const o = bindings.objects[key]!;
           const synced = o.sync === "transform" || o.seat;
-          return { key, path: o.path, networkId: synced ? networkId(core.slug, core.inst, key) : "", attachNetworkId: networkId(core.slug, core.inst, key), sync: o.sync, grab: o.grab, click: o.click, seat: o.seat };
+          // An object attached with autoSync needs the same id on every client (the others re-parent their own copy by
+          // it), so an "attach" object gets it as the kit loads; a synced object keeps its synced id (the app says an
+          // attached object should not also be a synced one).
+          if (synced && o.attach) core.log("warn", `kit object '${key}' is both synced and attachable: it keeps its synced id, and other players may not see it attached`);
+          const attach = attachId(core.slug, core.inst, key);
+          return { key, path: o.path, networkId: synced ? networkId(core.slug, core.inst, key) : o.attach ? attach : "", attachNetworkId: attach, attach: o.attach === true, sync: o.sync, grab: o.grab, click: o.click, seat: o.seat };
         }),
       };
       try {
@@ -444,8 +465,9 @@ export class GameInstance implements NetHost {
     // Unity runs the first Update in the frame of Start: so does this, so that state a game sets in Update (which
     // controls are live, say) is there as soon as the instance has started, not one tick later.
     this.tick();
+    // A game's own debug readers are made only on a test page: a published page never calls GameDefinition.debug.
     let extra: Record<string, unknown> = {};
-    if (this.game.debug) core.guard("debug hooks", () => (extra = this.game.debug!(this)));
+    if (this.game.debug && this.platform.isTestPage?.() === true) core.guard("debug hooks", () => (extra = this.game.debug!(this)));
     this.platform.expose(relayKey(core.slug, core.inst), {
       ...extra,
       digest: () => this.digest(),
@@ -857,17 +879,19 @@ export class GameInstance implements NetHost {
     const own = this.reachOverride.get(behaviour);
     const reach = own !== undefined ? own : eventReach !== undefined ? eventReach : classReach > 0 ? classReach : (this.game.interactReach ?? 0);
     if (!(reach > 0)) return true;
+    const unknown = this.game.reachWhenUnknown !== false;
     const transform = behaviour.gameObject.transform;
     const point = detail.point ?? (transform.known ? transform.position : null);
-    if (!point) return true;
-    return this.nearestDistance(point) <= reach;
+    if (!point) return unknown;
+    const distance = this.nearestDistance(point);
+    return distance === null ? unknown : distance <= reach;
   }
 
-  /** Metres from `point` to the nearest of the local head and hands; 0 when no pose or position is known. */
-  private nearestDistance(point: Vector3): number {
+  /** Metres from `point` to the nearest of the local head and hands; null when no pose or position is known. */
+  private nearestDistance(point: Vector3): number | null {
     const poses = this.poses;
     const from = poses ? [poses.head.position, poses.leftHand.position, poses.rightHand.position] : this.position ? [this.position] : [];
-    if (!from.length) return 0;
+    if (!from.length) return null;
     let nearest = Infinity;
     for (const p of from) nearest = Math.min(nearest, Vector3.Distance(p, point));
     return nearest;
@@ -930,8 +954,45 @@ export class GameInstance implements NetHost {
     list.push({ behaviour, method });
   }
 
+  private readonly headRequests = new Map<string, { resolve: (head: Vector3 | null) => void; timer: number }>();
+  private nextHeadRequest = 1;
+
+  /**
+   * Where the app places a player's head (relay op `pkHead`: the SDK's Get User State, which reads the user's Head
+   * transform). Resolves null when the app does not know the player or has no body for them yet (it answers 0 0 0), when
+   * the kit's relay graph has no `pkHead` op (a kit built before it), or after `seconds`. Unlike a position a page
+   * publishes about itself, the app's placing of another player's avatar is not that player's word (found by treasure
+   * hunt, whose referee checks a find's reach with it). The continuation runs after the reply's turn, like any promise.
+   */
+  headOf(player: Player | null, seconds = 2): Promise<Vector3 | null> {
+    if (!player || this.core.disposed) return Promise.resolve(null);
+    const id = String(this.nextHeadRequest++);
+    return new Promise((resolve) => {
+      const timer = this.scheduler.after(Math.max(0, seconds) * 1000, () => {
+        this.headRequests.delete(id);
+        resolve(null);
+      });
+      this.headRequests.set(id, { resolve, timer });
+      this.host.request(HEAD_OP, [id, player.sid]);
+    });
+  }
+
+  private onHeadReply(args: string[]): void {
+    const request = this.headRequests.get(args[0] ?? "");
+    if (!request) return;
+    this.headRequests.delete(args[0]!);
+    this.scheduler.cancel(request.timer);
+    const n = args.slice(1, 4).map((v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : NaN));
+    const known = n.length === 3 && n.every((v) => Number.isFinite(v)) && !(n[0] === 0 && n[1] === 0 && n[2] === 0);
+    request.resolve(known ? new Vector3(n[0], n[1], n[2]) : null);
+  }
+
   private onGraphEvent(name: string, args: string[]): void {
     if (this.core.disposed) return;
+    if (name === HEAD_EVENT) {
+      this.onHeadReply(args);
+      return;
+    }
     if (!this.started) {
       if (this.earlyGraphEvents.length < MAX_EARLY_EVENTS) this.earlyGraphEvents.push({ name, args });
       return;
@@ -1081,7 +1142,14 @@ export class GameInstance implements NetHost {
 
   /** A short hash of every synced field: equal on clients that agree. */
   digest(): string {
-    return fnv1a(this.sync.snapshotText());
+    // Per-player synced fields count too (found by rp-toolkit: a per-player game's digest compared nothing). A game with
+    // none, or none serialised yet, keeps the digest it had.
+    const perPlayer = this.perUser.snapshot();
+    const text = this.sync.snapshotText();
+    if (!perPlayer.length) return fnv1a(text);
+    const players: Record<string, Record<string, unknown>> = {};
+    for (const copy of perPlayer) (players[copy.sid] ??= {})[copy.id] = copy.fields;
+    return fnv1a(text + "\n" + canonicalJson(players));
   }
 
   /**
@@ -1098,6 +1166,11 @@ export class GameInstance implements NetHost {
       if (!marker) continue;
       writes += marker.n;
       parts.push(`${id}:${marker.g}.${marker.n}.${marker.w}`);
+    }
+    // per-player copies: their own sequence numbers, written only by their player
+    for (const copy of this.perUser.snapshot()) {
+      writes += copy.n;
+      parts.push(`${copy.sid}/${copy.id}:${copy.n}`);
     }
     return `${writes}:${fnv1a(parts.join("|"))}`;
   }

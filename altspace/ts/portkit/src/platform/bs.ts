@@ -274,8 +274,12 @@ export class BsPlatform implements Platform {
    */
   expose(key: string, hooks: Record<string, unknown> | null): void {
     const registry = this.registry();
-    if (hooks && this.env.win.__pk1_debug === true) registry.debug[key] = hooks;
+    if (hooks && this.isTestPage()) registry.debug[key] = hooks;
     else delete registry.debug[key];
+  }
+
+  isTestPage(): boolean {
+    return this.env.win.__pk1_debug === true;
   }
 
   onRelay(key: string, handlers: RelayHandlers): Unsubscribe {
@@ -914,7 +918,7 @@ export class BsPlatform implements Platform {
           );
         }
         if (object.seat) seat = await go.AddComponent(new BS.Seat({}));
-        objects.set(object.key, new BsHostObject(this, object.key, object.path, go, synced, seat, object.networkId, object.attachNetworkId ?? ""));
+        objects.set(object.key, new BsHostObject(this, object.key, object.path, go, synced, seat, object.networkId, object.attachNetworkId ?? "", object.attach === true));
       } catch (error) {
         this.log("warn", `kit object ${object.key} (${object.path}): ${describe(error)}`);
         missing.push(object.key);
@@ -1165,7 +1169,8 @@ class BsHostObject implements HostObject {
   private readonly attachNetworkId: string;
   private hasNetworkId: boolean;
 
-  constructor(platform: BsPlatform, key: string, path: string, go: any, synced: any, seat: any, networkId = "", attachNetworkId = "") {
+  private readonly attachable: boolean;
+  constructor(platform: BsPlatform, key: string, path: string, go: any, synced: any, seat: any, networkId = "", attachNetworkId = "", attachable = false) {
     this.platform = platform;
     this.key = key;
     this.path = path;
@@ -1174,6 +1179,7 @@ class BsHostObject implements HostObject {
     this.seat = seat;
     this.hasNetworkId = networkId !== "";
     this.attachNetworkId = attachNetworkId;
+    this.attachable = attachable;
   }
 
   on(kind: HostEventKind, handler: (detail: HostEventDetail) => void): Unsubscribe {
@@ -1296,6 +1302,10 @@ class BsHostObject implements HostObject {
     const uid = this.platform.local().uid;
     void (async () => {
       try {
+        if (autoSync && !this.attachable) {
+          // Only this page gives the object an id now: the other clients have no object of that id to re-parent.
+          this.platform.log("warn", `${this.key}: attached with autoSync but not marked attachable in the bindings (KitStage.Attachable): other players will not see the attachment`);
+        }
         if (autoSync && !this.hasNetworkId && this.attachNetworkId) {
           await this.go.SetNetworkId(this.attachNetworkId);
           this.hasNetworkId = true;

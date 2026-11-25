@@ -291,7 +291,8 @@ test("a TextRef starts unknown: setting \"\" first is sent (a prefab placeholder
 
 test("debugging hooks reach window.__pk1.debug only on a test page (window.__pk1_debug), never on a published one", async () => {
   const room = new FakeRoom({ seed: 96 });
-  const g = probeGame("hooks", { debug: () => ({ cheat: () => "a hook a game added for its tests" }) });
+  const calledFor: string[] = [];
+  const g = probeGame("hooks", { debug: (instance) => (calledFor.push(instance.core.me.name), { cheat: () => "a hook a game added for its tests" }) });
   const published = enter(room, [g]);
   const testPage = room.join({ name: "Tester" });
   (testPage.env.win as { __pk1_debug?: boolean }).__pk1_debug = true;
@@ -303,4 +304,5 @@ test("debugging hooks reach window.__pk1.debug only on a test page (window.__pk1
   assert.deepEqual(Object.keys(registry(published)), [], "nothing exposed on a published page");
   assert.ok(typeof registry(testPage)["hooks:0"]?.cheat === "function", "the test page has the game's hooks");
   assert.ok(typeof registry(testPage)["hooks:0"]?.digest === "function" && typeof registry(testPage)["hooks:0"]?.version === "function");
+  assert.deepEqual(calledFor, ["Tester"], "GameDefinition.debug is called on the test page only, never on a published one");
 });

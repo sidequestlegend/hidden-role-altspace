@@ -319,7 +319,7 @@ const CLASSES = { Probe, Door, Piece, Meter, Sheet, SavedSheet, ObjectPool };
 export function makeGame(spec: GameSpec): TestGame {
   const objects: Record<string, unknown> = { root: { path: "Root", sync: "none", grab: false, click: false, seat: false } };
   for (const key of spec.objects ?? []) {
-    objects[key] = { path: `Root/${key}`, sync: key.startsWith("sync") ? "transform" : "none", grab: key.startsWith("grab") || key.startsWith("sync"), click: key.startsWith("click"), seat: false };
+    objects[key] = { path: `Root/${key}`, sync: key.startsWith("sync") ? "transform" : "none", grab: key.startsWith("grab") || key.startsWith("sync"), click: key.startsWith("click"), seat: false, ...(key.startsWith("attach") ? { attach: true } : {}) };
   }
   const bindings = validateBindings({
     schema: 1,

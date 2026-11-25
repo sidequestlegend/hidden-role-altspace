@@ -236,8 +236,47 @@ test("per-player behaviours get their own object events on the local player's co
   // At the head, shown to the others (autoSync): the object takes its per-instance network id first.
   club.AttachToHead(new Vector3(0, 0.3, 0), undefined, true);
   await room.run(200);
-  assert.deepEqual(attached(), [{ uid: a.uid, point: 0, autoSync: true, networkId: "pk1/pp/0/grabClub" }], "on a's head, synced");
+  assert.deepEqual(attached(), [{ uid: a.uid, point: 0, autoSync: true, networkId: "pk1:pp:0:grabClub" }], "on a's head, synced");
   club.Detach();
   await room.run(200);
   assert.deepEqual(attached(), []);
+});
+
+test("an attachable kit object (bindings \"attach\": true) has its attachment id on every client, so an autoSync attachment reaches the others", async () => {
+  const room = new FakeRoom({ seed: 138 });
+  const g = makeGame({ slug: "labels", objects: ["attachLabel", "plainLabel"], behaviours: [{ id: "p", type: "Probe", object: "attachLabel" }] });
+  const [a, b] = [enter(room, [g]), enter(room, [g])];
+  await untilStarted(room, [a, b], "labels");
+  await room.run(500);
+  const label = objectOf(a, "labels", "0", "attachLabel");
+  label.AttachToHead(new Vector3(0, 0.3, 0), undefined, true);
+  await room.run(500);
+  const seen = (client: typeof a, key: string) => [...client.remoteAttached.entries()].filter(([path]) => path.endsWith("/Root/" + key)).map(([, at]) => at);
+  assert.deepEqual(seen(b, "attachLabel"), [{ uid: a.uid, point: 0 }], "b reproduces a's attachment on its own copy of the label");
+  assert.ok(!a.logged("warn").some((line) => line.includes("not marked attachable")));
+  label.Detach();
+  await room.run(500);
+  assert.deepEqual(seen(b, "attachLabel"), []);
+  // An object the bindings do not mark: only the attaching page gives it an id, so the others cannot reproduce it.
+  objectOf(a, "labels", "0", "plainLabel").AttachToHead(new Vector3(0, 0.3, 0), undefined, true);
+  await room.run(500);
+  assert.deepEqual(seen(b, "plainLabel"), []);
+  assert.ok(b.notes.some((note) => note.includes("does not have")), "b had no object of that id");
+  assert.ok(a.logged("warn").some((line) => line.includes("not marked attachable")), "a is told why");
+});
+
+test("a fake-room relay-op handler is told the instance the record was sent for", async () => {
+  const room = new FakeRoom({ seed: 139 });
+  const seen: string[] = [];
+  room.defineRelayOp("ping", (record, client) => {
+    seen.push(`${record.key} ${record.slug} ${record.inst}`);
+    client.graphEvent(record.slug, record.inst, "pong", record.args[0] ?? "");
+  });
+  const g = makeGame({ slug: "keys", objects: ["table"], behaviours: [{ id: "p", type: "Probe", object: "table" }] });
+  const a = enter(room, [g], { elements: [{ slug: "keys", attributes: { room: "north" } }, { slug: "keys", attributes: { room: "south" } }] });
+  await untilStarted(room, [a], "keys", "north");
+  await untilStarted(room, [a], "keys", "south");
+  probe(a, "keys", "south").Host.op("ping", "table", ["x"]);
+  await room.run(200);
+  assert.deepEqual(seen, ["keys:south keys south"]);
 });

@@ -103,6 +103,15 @@ namespace PortKit
         /// <summary>The box the photo frames, in the kit's own axes. Null: the box around what PhotoRoot draws.</summary>
         public virtual Bounds? PhotoBounds => null;
 
+        // ---- the kit's footprint (manifest.json, the markup's box gizmo, the hub's grid) ----
+        /// <summary>
+        /// The part of the kit the footprint measures: a path under the kit root ("Table"). Null: the whole kit. For a kit with
+        /// parts far from where it is played (hidden-role's lounge 70 m below made its footprint 73.4 m tall).
+        /// </summary>
+        public virtual string FootprintRoot => null;
+        /// <summary>The footprint itself, in the kit's own axes. Null: the box around what FootprintRoot draws.</summary>
+        public virtual Bounds? FootprintBounds => null;
+
         /// <summary>Put the kit together under stage.Root and say what the script needs (stage.Object, Ref, Behaviour, Event, AddGraph).</summary>
         protected abstract void Compose(KitStage stage);
 
@@ -300,6 +309,33 @@ namespace PortKit
             if (grab != null) entry.Grab = grab.Value;
             if (click != null) entry.Click = click.Value;
             if (seat != null) entry.Seat = seat.Value;
+            return go;
+        }
+
+        /// <summary>
+        /// The object starts switched off in every copy of the kit, as if the upstream prefab had it off: it is bound, saved on
+        /// (so that the page can find it) and written "active": false, so the runtime switches it off as soon as it has found
+        /// it, and the photo and the footprint leave it out. For what a game hides as it starts (blackjack's dealer card
+        /// canvas, an empty dark-green panel in the photo until the game hides it).
+        /// </summary>
+        public GameObject StartOff(GameObject go)
+        {
+            go = Object(go);
+            go.SetActive(false);
+            return go;
+        }
+
+        /// <summary>
+        /// The object is attached to players with autoSync (GameObject.AttachToHead(..., true): a label over each avatar): it
+        /// is bound and written "attach": true, so every client gives it the same attachment id as the kit loads and the
+        /// others re-parent their own copy when somebody attaches it (without it only the attaching page had the id, and the
+        /// other players saw the label stay at the kit; found by rp-toolkit). Not for a synced object (the app says an
+        /// attached object should not also sync its transform): each player attaches an object of their own.
+        /// </summary>
+        public GameObject Attachable(GameObject go)
+        {
+            go = Object(go);
+            entries[go].Attach = true;
             return go;
         }
 
@@ -548,6 +584,28 @@ namespace PortKit
             return string.Join("/", names);
         }
 
+        /// <summary>
+        /// SDK 4.0.29: BS Grababble adds BS Held Events, which adds a BSPlayerEvents at run time whose UnityEvents are all null
+        /// (AddComponent does not make them), and BSScene.Click calls `onClick.Invoke` on it without a null check: every click
+        /// on a grabbable throws a NullReferenceException before the page hears it (found by chess). BS Held Events takes a
+        /// BSPlayerEvents that is already on the object, so the kit carries one with every UnityEvent made: saved in the
+        /// prefab, they come back from the bundle as empty events, and the click goes on to the page. Remove once the SDK
+        /// null-checks (or makes the events itself).
+        /// </summary>
+        public static Component ClickableGrab(GameObject go)
+        {
+            var type = GraphTypes.TryFind("BSPlayerEvents");
+            if (type == null) return null;
+            var events = go.GetComponent(type) ?? go.AddComponent(type);
+            foreach (var field in type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+            {
+                if (!typeof(UnityEngine.Events.UnityEventBase).IsAssignableFrom(field.FieldType) || field.GetValue(events) != null) continue;
+                field.SetValue(events, Activator.CreateInstance(field.FieldType));
+            }
+            EditorUtility.SetDirty(events);
+            return events;
+        }
+
         /// <summary>A path must lead to one object only: other objects of the same name under the same parent, anywhere up the chain, are renamed.</summary>
         void Untwin(GameObject go)
         {
@@ -681,6 +739,7 @@ namespace PortKit
                     if (go.GetComponent<Rigidbody>() == null) go.AddComponent<Rigidbody>();
                     foreach (var mesh in go.GetComponents<MeshCollider>()) mesh.convex = true;      // a mesh collider on a moving body has to be convex
                     if (go.GetComponent(T("BS.BSGrababble")) == null) go.AddComponent(T("BS.BSGrababble"));
+                    ClickableGrab(go);
                     go.layer = 20;                                                  // Grabbable
                 }
                 for (var t = go.transform; t != null; t = t.parent)                // the page builds a path from objects it knows: each has an id
@@ -731,6 +790,13 @@ namespace PortKit
             variables.declarations.Set(GraphWriter.RefsVariable, list);
             variables.declarations.Set(GraphWriter.KitRootVariable, Root);
             Root.AddComponent<ScriptMachine>().nest.SwitchToMacro(graph);
+            // every body the relay's rbLaunch may launch holds its own pending launch (RelayGraph.Launches)
+            foreach (var body in Root.GetComponentsInChildren<Rigidbody>(true))
+            {
+                var own = body.GetComponent<Variables>() ?? body.gameObject.AddComponent<Variables>();
+                if (!own.declarations.IsDefined(RelayGraph.LaunchSteps)) own.declarations.Set(RelayGraph.LaunchSteps, 0f);
+                if (!own.declarations.IsDefined(RelayGraph.LaunchVelocity)) own.declarations.Set(RelayGraph.LaunchVelocity, Vector3.zero);
+            }
             AssetDatabase.SaveAssets();
 
             var problems = Bindings.Problems();

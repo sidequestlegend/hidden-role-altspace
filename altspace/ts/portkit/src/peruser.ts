@@ -236,6 +236,22 @@ export class PerUser implements PlayerDataView {
     return true;
   }
 
+  /**
+   * Every per-player copy that holds a value (it was serialised or received at least once), in session and id order,
+   * with its sequence number and fields: what `digest()` and `version()` add for per-player behaviours.
+   */
+  snapshot(): Array<{ sid: string; id: string; n: number; fields: Record<string, unknown> }> {
+    const out: Array<{ sid: string; id: string; n: number; fields: Record<string, unknown> }> = [];
+    for (const sid of [...this.owned.keys()].sort()) {
+      const mine = this.owned.get(sid)!;
+      for (const id of [...mine.keys()].sort()) {
+        const entry = mine.get(id)!;
+        if (entry.n > 0 && entry.fields.length) out.push({ sid, id, n: entry.n, fields: readFields(entry.behaviour, entry.fields) });
+      }
+    }
+    return out;
+  }
+
   behaviour(sid: string, id: string): Behaviour | null {
     return this.owned.get(sid)?.get(id)?.behaviour ?? null;
   }

@@ -185,7 +185,7 @@ export class RulesBench {
         SetBlock: noop,
         LastClickSide: null,
         IsVR: false,
-        InReach: () => true,
+        InReach: () => true, // one local player who is everywhere
       },
       protectedValues: { CanWrite: true, Set: noop, Get: (_k, fallback) => fallback, Has: () => false },
       player: null,
